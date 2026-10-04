@@ -109,6 +109,8 @@ async function main() {
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 
+  const WRITES = { defaultToNull: false } as const;
+
   async function save(
     label: string,
     run: () => PromiseLike<{ error: { message: string } | null }>,
@@ -361,11 +363,11 @@ async function main() {
       invite_code: INVITE_CODE,
       base_currency: "INR",
       created_at: new Date(Date.UTC(2026, 9, 20, 8, 30, 0)).toISOString(),
-    }),
+    }, WRITES),
   );
 
   await save(`members (${members.length})`, () =>
-    supabase.from("members").upsert(members),
+    supabase.from("members").upsert(members, WRITES),
   );
 
   await save("trip owner", () =>
@@ -376,19 +378,19 @@ async function main() {
   );
 
   await save(`places (${places.length})`, () =>
-    supabase.from("places").upsert(places),
+    supabase.from("places").upsert(places, WRITES),
   );
 
   await save(`place votes (${votes.length})`, () =>
-    supabase.from("place_votes").upsert(votes),
+    supabase.from("place_votes").upsert(votes, WRITES),
   );
 
   await save(`itinerary items (${itinerary.length})`, () =>
-    supabase.from("itinerary_items").upsert(itinerary),
+    supabase.from("itinerary_items").upsert(itinerary, WRITES),
   );
 
   await save(`packing items (${packing.length})`, () =>
-    supabase.from("packing_items").upsert(packing),
+    supabase.from("packing_items").upsert(packing, WRITES),
   );
 
   await save("budget", () =>
@@ -403,11 +405,11 @@ async function main() {
         shopping: 200000,
         other: 200000,
       },
-    }),
+    }, WRITES),
   );
 
   await save(`expenses (${expenses.length})`, () =>
-    supabase.from("expenses").upsert(expenses.map((entry) => entry.expense)),
+    supabase.from("expenses").upsert(expenses.map((entry) => entry.expense), WRITES),
   );
 
   await save("expense splits", async () => {
@@ -419,7 +421,7 @@ async function main() {
     if (error) return { error };
     return supabase
       .from("expense_splits")
-      .insert(expenses.flatMap((entry) => entry.splits));
+      .insert(expenses.flatMap((entry) => entry.splits), WRITES);
   });
 
   await save("mixed-split example (unequal shares)", () =>
@@ -427,11 +429,11 @@ async function main() {
       expense_id: "66666666-6666-4666-8666-666666666609",
       member_id: split.member_id,
       share_paise: split.share_paise,
-    }))),
+    })), WRITES),
   );
 
   await save(`settlements (${settlements.length})`, () =>
-    supabase.from("settlements").upsert(settlements),
+    supabase.from("settlements").upsert(settlements, WRITES),
   );
 
   const totalSpent = expenses.reduce((sum, entry) => sum + entry.expense.amount_paise, 0);

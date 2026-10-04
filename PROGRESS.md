@@ -45,12 +45,18 @@
   `Insert` optionality vs column defaults, and all 8 enum labels match exactly.
 - `npm run typecheck`, `npm run lint`, `npm run build` and the seed dry run are all clean.
 
-### Not verified
-- The migration has not been applied to a real Supabase project and the seed has not been
-  written to a live database: this environment has no `SUPABASE_URL` /
-  `SUPABASE_SERVICE_ROLE_KEY`. The bucket insert was checked against a stub of
-  `storage.buckets` matching Supabase's column shape (`id text`, `file_size_limit bigint`,
-  `allowed_mime_types text[]`).
+### Live verification
+- The migration was applied to the real Supabase project `pqsnazkorjcyihulhckn` (SQL editor)
+  and the seed was written to it: 1 trip, 4 members, 6 places, 19 votes, 6 itinerary items,
+  12 packing items, 1 budget, 10 expenses, 36 splits, 2 settlements, and the 4 private buckets.
+- Money was re-checked from the written rows: total paid = total share = 2,092,000 paise
+  (Rs 20,920 of the Rs 30,000 budget), the per-member nets sum to 0, and the settlements
+  cover exactly the Rs 7,248 credit Bhoomi is owed.
+- One real bug surfaced only against live PostgREST: multi-row inserts use the *union* of
+  keys, so packing rows that omitted `checked` were sent as `NULL` instead of the column
+  default. Every write in `scripts/seed.ts` now passes `defaultToNull: false`
+  (`const WRITES`), which omits absent keys from the statement. Later prompts must do the
+  same for any partial-column insert.
 
 ### Quirks to remember
 - `unique (trip_id, display_name)` is case-sensitive, so P2 must look a member up with
@@ -58,6 +64,8 @@
 - The migration is single-run by design (`create type` has no `if not exists`).
 - `documents` and `photos` are not seeded: their rows point at storage paths, so they get
   created by the upload routes in P6 and P12.
+- The service-role key lives only in `.env.local` (gitignored) and in Vercel's environment
+  variables. It must never be prefixed `NEXT_PUBLIC_`.
 
 ## Deferred
 - Nothing from P0 or P1.
