@@ -67,11 +67,79 @@
 - The service-role key lives only in `.env.local` (gitignored) and in Vercel's environment
   variables. It must never be prefixed `NEXT_PUBLIC_`.
 
+## P2 — Auth: invite code + display name + PIN (done)
+- `src/lib/auth/codes.ts` — 12-character codes from `crypto.randomBytes` with rejection
+  sampling over a 32-glyph alphabet (no `I O 0 1`), so a code read aloud survives a
+  forward. Input is uppercased and stripped of punctuation, so typing is forgiving.
+- `src/lib/auth/password.ts` — bcrypt cost 10 via `bcryptjs`. `burnPinCompare` compares
+  against a decoy hash when the member does not exist, so a missing member costs the same
+  time as a wrong PIN and the two cannot be told apart by timing.
+- `src/lib/auth/session.ts` — HS256 JWT via `jose` in an httpOnly, `SameSite=Lax`,
+  `Secure`-in-production cookie, 14-day expiry. The token carries only `member_id` (sub)
+  and `trip_id`: role, name and membership are re-read from the database on every
+  request, so removing a member or changing a role takes effect immediately instead of
+  living on inside a cookie for a fortnight.
+- `src/lib/auth/context.ts` — `requireSession` is the single gate for every read and
+  write. It re-reads the member row, rejects a token whose `trip_id` disagrees with the
+  member it points at, and redirects to `/join`. `requireOwner` gates the owner tools.
+- `src/lib/auth/rate-limit.ts` — 5 wrong PINs locks that member for 15 minutes
+  (`members.failed_attempts` + `locked_until`), plus an IP throttle of 20 failures per
+  15 minutes from `login_attempts`, which also covers attempts that never resolved to a
+  member. Resetting a PIN clears the lockout with it.
+- `src/lib/auth/service.ts` — `createTrip`, `joinOrLogin`, `loginWithPin`,
+  `rotateInviteCode`. No cookie writes and no `next/headers` reads here: the actions pass
+  the client IP in, which keeps the business logic testable outside a request.
+  An unknown display name with the invite code *joins* (the code is the invitation and the
+  joiner picks their own PIN); a known name must pass the PIN. Because the unique
+  constraint is case sensitive, the name is matched with `ilike`, and after insert the
+  trip is re-counted with `ilike` so a simultaneous case-variant join backs itself out
+  instead of shadowing the first member.
+- Server actions only: `src/app/(auth)/actions.ts` (create, join), `src/app/(app)/actions.ts`
+  (logout, rotate, reset PIN, remove member). Every one of them validates with zod, and
+  the owner actions re-check ownership inside the action rather than trusting the UI.
+- Screens: `/join` (invite code + name + PIN, one form for both joining and signing in),
+  `/new` (create a trip and mint the code), and `/trip`, which is now real: the invite
+  plate with a copy/share button, an SVG QR that scans into `/join?code=…`, the crew list,
+  and the owner tools. `(app)/layout.tsx` gates the app, `(auth)/layout.tsx` bounces
+  signed-in users to `/plan`. No `proxy.ts`/middleware: Next 16 deprecates it in favour of
+  doing this in the layout, where the membership check can actually reach the database.
+- `PinInput` is one native input drawn over six cells, so paste, backspace and
+  one-time-code autofill work instead of being reimplemented. `QrCode` renders SVG paths,
+  not a data-URL image. Both are in `/design` under a new "Auth" section.
+
+### How P2 was verified
+- **48/48 checks** in a throwaway harness running the real service against the live
+  Supabase project: 2000 codes are unique and unambiguous; zod rejects bad PINs, reversed
+  dates, mismatched confirmations and unknown location types; bcrypt hashes are salted and
+  never contain the PIN; create/join/login round-trip; case-insensitive name matching;
+  the 5th wrong PIN locks the member, the correct PIN is refused while locked, the audit
+  trail records the attempts; an owner reset restores access and kills the old PIN;
+  rotation invalidates the old code; a removed member cannot sign back in. The harness trip
+  was deleted afterwards and the seeded trip was left untouched.
+- Over real HTTP against `next start`: unauthenticated `/plan`, `/trip` and `/map` all
+  307 to `/join`; a garbage and a tampered cookie are both refused; a signed cookie opens
+  `/plan`, `/trip` and `/money`; a signed cookie bounces `/join` and `/new` back to `/plan`.
+- Rendered HTML was diffed per role: the owner sees Rotate / Reset PIN / Remove, a plain
+  member sees none of them.
+- `npm run typecheck`, `npm run lint` and `npm run build` are clean.
+
+### Quirks to remember
+- `NEXT_PUBLIC_APP_URL` is hand-typed into a dashboard, so `env.appUrl` adds `https://`
+  when the scheme is missing. Without it the QR code and share link scan as a relative path.
+- The lockout counter resets to 0 the moment the lockout starts, so a member gets a fresh
+  5 attempts after the 15 minutes, instead of 10.
+- A plain member deliberately sees no owner controls at all; `MemberRow` takes `canManage`
+  separately from the row's own `isOwner`, because the row role and the viewer's role are
+  different questions.
+
 ## Deferred
-- Nothing from P0 or P1.
+- Nothing from P0 to P2. Still to do: transferring ownership, letting the owner leave,
+  and password-recovery-by-owner is only a PIN reset (no trip-admin takeover).
 
 ## Known bugs
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## Next: P2 — auth (invite code + name + PIN)
+## Next: whatever the pack asks for after auth — most likely the itinerary/plan screen,
+which is still the P0 placeholder. The pack itself is not in this repo, so the next scope
+has to come from you.

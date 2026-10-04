@@ -44,11 +44,14 @@ export default function Home() {
         </p>
 
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <ButtonLink href="/design" variant="primary" size="lg" sparkle>
-            Review the look
+          <ButtonLink href="/join" variant="primary" size="lg" sparkle>
+            Join with a code
           </ButtonLink>
-          <ButtonLink href="/plan" variant="chrome" size="lg">
-            Peek at the shell
+          <ButtonLink href="/new" variant="accent" size="lg">
+            Start a trip
+          </ButtonLink>
+          <ButtonLink href="/design" variant="chrome" size="lg">
+            Review the look
           </ButtonLink>
         </div>
 
@@ -72,7 +75,7 @@ export default function Home() {
 
         <p className="mt-6 flex items-center justify-center gap-1.5 text-xs font-bold text-ink-soft">
           <SparkleIcon className="size-3.5 animate-twinkle text-electric" />
-          Trips, invites and PINs arrive in the next prompt
+          No email, no password: an invite code, a display name and a 6-digit PIN
         </p>
       </main>
     </div>

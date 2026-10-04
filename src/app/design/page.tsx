@@ -5,6 +5,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { SparkleIcon } from "@/components/ui/icons";
 import { ToastProvider } from "@/components/ui/toast";
 import {
+  AuthSection,
   AvatarSection,
   BadgeSection,
   ButtonSection,
@@ -24,6 +25,7 @@ const groups = [
   { label: "Buttons", Sections: [ButtonSection] },
   { label: "Windows", Sections: [WindowSection] },
   { label: "Forms", Sections: [FormSection] },
+  { label: "Auth", Sections: [AuthSection] },
   { label: "Badges", Sections: [BadgeSection] },
   { label: "Tabs", Sections: [TabsSection] },
   { label: "Avatars", Sections: [AvatarSection] },
@@ -54,9 +56,9 @@ export default function DesignPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge tone="pop">P0</Badge>
-              <ButtonLink href="/plan" variant="chrome" size="sm">
-                App shell
+              <Badge tone="pop">P2</Badge>
+              <ButtonLink href="/join" variant="chrome" size="sm">
+                Join screen
               </ButtonLink>
             </div>
           </div>

@@ -6,6 +6,8 @@ import {
   IconButton,
 } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
+import { PinInput } from "@/components/auth/pin-input";
+import { QrCode } from "@/components/auth/qr-code";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   ChevronRightIcon,
@@ -252,6 +254,45 @@ export function FormSection() {
             <span className="text-base font-bold text-ink-soft">
               Search a place…
             </span>
+          </div>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+export function AuthSection() {
+  return (
+    <Section
+      title="Auth bits"
+      blurb="The PIN pad, the invite code plate and the QR that carries it. Every join and login screen is built from these."
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-4">
+          <Field label="6-digit PIN" htmlFor="d-pin" hint="Pick one if you are new.">
+            <PinInput name="d-pin" defaultValue="1234" readOnly />
+          </Field>
+          <Field
+            label="Wrong PIN"
+            htmlFor="d-pin-bad"
+            error="That PIN is not right. 3 tries left."
+          >
+            <PinInput name="d-pin-bad" defaultValue="9999" invalid readOnly />
+          </Field>
+        </div>
+        <div className="space-y-3">
+          <p className="break-all rounded-2xl border-2 border-dashed border-electric/50 bg-electric/5 px-3 py-2 text-center font-display text-lg tracking-[0.2em] text-electric-deep">
+            KONKAN7X4QP2M
+          </p>
+          <div className="flex items-center gap-3">
+            <QrCode
+              value="https://trip-cancil.vercel.app/join?code=KONKAN7X4QP2M"
+              className="w-32 shrink-0 rounded-2xl border-2 border-silver-deep shadow-sticker"
+            />
+            <p className="text-sm font-semibold text-ink-soft">
+              Scans straight into the join form with the code prefilled. Drawn as SVG
+              paths, so it stays crisp and picks up the palette.
+            </p>
           </div>
         </div>
       </div>

@@ -19,6 +19,9 @@ export const env = {
     return required("SESSION_SECRET");
   },
   get appUrl(): string {
-    return required("NEXT_PUBLIC_APP_URL");
+    // Typed into a dashboard by hand, so "trip-cancil.vercel.app" is as likely as
+    // the full URL. Invite links and QR codes need the scheme to resolve.
+    const raw = required("NEXT_PUBLIC_APP_URL").trim().replace(/\/+$/, "");
+    return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
   },
 };

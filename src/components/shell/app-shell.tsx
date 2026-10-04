@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { SparkleIcon } from "@/components/ui/icons";
+import { logoutAction } from "@/app/(app)/actions";
 import { isActive, navItems } from "./nav";
 
 function Wordmark({ compact = false }: { compact?: boolean }) {
@@ -71,7 +72,15 @@ function NavLink({
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  displayName,
+  tripName,
+}: {
+  children: ReactNode;
+  displayName: string;
+  tripName: string;
+}) {
   const pathname = usePathname();
 
   return (
@@ -87,13 +96,21 @@ export function AppShell({ children }: { children: ReactNode }) {
             />
           ))}
         </nav>
-        <div className="dotted-grid mt-auto rounded-2xl border-2 border-dashed border-silver-deep/70 bg-cream/70 p-3 text-center">
-          <p className="font-display text-[9px] uppercase leading-4 tracking-tight text-ink">
-            Y2K engine
+        <div className="dotted-grid mt-auto flex flex-col gap-2 rounded-2xl border-2 border-dashed border-silver-deep/70 bg-cream/70 p-3">
+          <p className="truncate font-display text-[9px] uppercase leading-4 tracking-tight text-ink">
+            {tripName}
           </p>
-          <p className="text-[11px] font-semibold text-ink-soft">
-            Plan · Split · Shoot · Relive
+          <p className="truncate text-xs font-bold text-ink-soft">
+            Signed in as <span className="text-ink">{displayName}</span>
           </p>
+          <form action={logoutAction}>
+            <button
+              type="submit"
+              className="w-full rounded-bubble border-2 border-silver-deep bg-white/80 px-3 py-1.5 font-display text-[9px] uppercase tracking-tight text-ink-soft transition-transform active:translate-y-[2px] hover:text-hotpink-deep"
+            >
+              Sign out
+            </button>
+          </form>
         </div>
       </aside>
 
