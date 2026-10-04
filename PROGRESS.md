@@ -15,15 +15,55 @@
 - `/design` shows every component in every state; `/` is a Y2K splash.
 - App shell: fixed sidebar from 768px up, bottom tab bar under it, five routes
   `/plan` `/map` `/money` `/photos` `/trip` (placeholders that demo skeleton + empty state).
-- Verified: `npm run typecheck`, `npm run lint`, `npm run build` all clean; every route
-  returns 200 in dev; all custom utilities and theme vars appear in the compiled CSS.
 - Reduced motion respected globally; body copy is 16px+ and high contrast on cream.
 
+## P1 — Database schema (done)
+- `supabase/migrations/001_init.sql`: 13 tables, 8 enums, RLS enabled on every table with
+  zero policies, `trip_id` indexes, four private buckets, explicit `revoke` of anon and
+  authenticated privileges plus `revoke create on schema public`.
+- Money is `bigint` paise everywhere with `> 0` / `>= 0` checks; lat/lng, dates, vote
+  values, self-settlements and non-object category caps are all constrained in the DB.
+- Circular FK handled: `trips.owner_member_id` is added after `members` exists.
+- `src/lib/db/types.ts` — full hand-written `Database` type with `Relationships` for every
+  FK, so `select("*, members(*)")` stays typed in later prompts.
+- `src/lib/db/client.ts` — `import "server-only"`, cached service-role client, no anon key.
+- `src/lib/env.ts` — lazy accessors, so builds never need env vars at import time.
+- `scripts/seed.ts` — fixed UUIDs so it is re-runnable; 1 trip, 4 members (PIN 123456),
+  6 places, 19 votes, 6 itinerary items, 12 packing items, budget, 10 expenses with exact
+  splits (one equal-with-remainder, one exact split, one unequal split), 2 settlements.
+  `npm run seed -- --dry-run` validates and prints without writing; the script throws if any
+  expense's splits do not sum exactly to its amount.
+
+### How P1 was verified
+- The migration was applied to a real Postgres engine (PGlite/WASM) in a throwaway harness:
+  **50/50 checks pass** — all 13 tables created, RLS on with 0 policies, anon and
+  authenticated have no table privileges, 4 buckets inserted as private, 20+ indexes, and
+  12 negative tests (negative amount, bad vote value, self-settlement, duplicate display
+  name, short invite code, reversed dates, lat out of range, non-object caps, unknown enum
+  value, missing payer FK, owner FK, soft delete keeps the row).
+- `src/lib/db/types.ts` was diffed against the live catalog: column names, nullability,
+  `Insert` optionality vs column defaults, and all 8 enum labels match exactly.
+- `npm run typecheck`, `npm run lint`, `npm run build` and the seed dry run are all clean.
+
+### Not verified
+- The migration has not been applied to a real Supabase project and the seed has not been
+  written to a live database: this environment has no `SUPABASE_URL` /
+  `SUPABASE_SERVICE_ROLE_KEY`. The bucket insert was checked against a stub of
+  `storage.buckets` matching Supabase's column shape (`id text`, `file_size_limit bigint`,
+  `allowed_mime_types text[]`).
+
+### Quirks to remember
+- `unique (trip_id, display_name)` is case-sensitive, so P2 must look a member up with
+  `ilike` before inserting to stop "Bhoomi" and "bhoomi" both joining.
+- The migration is single-run by design (`create type` has no `if not exists`).
+- `documents` and `photos` are not seeded: their rows point at storage paths, so they get
+  created by the upload routes in P6 and P12.
+
 ## Deferred
-- Nothing from P0.
+- Nothing from P0 or P1.
 
 ## Known bugs
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## Next: P1 — database schema
+## Next: P2 — auth (invite code + name + PIN)
