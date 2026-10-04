@@ -7,6 +7,8 @@ export type ActionState = {
   ok?: boolean;
   /** Where the client should go next, e.g. "/plan" after joining. */
   redirectTo?: string;
+  /** Arbitrary payload for non-form actions (e.g., search results). */
+  payload?: unknown;
 };
 
 export const idleState: ActionState = {};

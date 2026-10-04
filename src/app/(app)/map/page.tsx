@@ -1,24 +1,33 @@
 import { ScreenHeader } from "@/components/shell/screen-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Window } from "@/components/ui/window";
+import { requireSession } from "@/lib/auth/context";
+import { getSupabase } from "@/lib/db/client";
+import { TripMap } from "./trip-map";
 
-export default function MapPage() {
+export default async function MapPage() {
+  const { trip } = await requireSession();
+  const supabase = getSupabase();
+
+  const { data: places } = await supabase
+    .from("places")
+    .select("id, name, lat, lng, location_type")
+    .eq("trip_id", trip.id)
+    .order("created_at", { ascending: true });
+
   return (
     <>
-      <ScreenHeader
-        title="Map"
-        subtitle="Pins, day routes and place search land in the next prompt"
-      />
-      <Window title="map.view" tone="chrome" bodyClassName="p-0">
-        <div className="dotted-grid scanlines grid h-72 place-items-center">
+      <ScreenHeader title="Map" subtitle="Pins for all the places you are keen to hit" />
+      <div className="h-[calc(100vh-12rem)] md:h-[calc(100vh-8rem)]">
+        {places && places.length > 0 ? (
+          <TripMap places={places} />
+        ) : (
           <EmptyState
-            illustration="map"
-            title="Map goes live soon"
-            description="Candidate places show as colour-coded pins with day filters and a route line."
-            className="border-0 bg-transparent"
+            illustration="mountain"
+            title="No places pinned yet"
+            description="Add places from the plan screen or via search — they will show up here on the map."
           />
-        </div>
-      </Window>
+        )}
+      </div>
     </>
   );
 }
