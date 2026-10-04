@@ -140,6 +140,7 @@
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## Next: whatever the pack asks for after auth — most likely the itinerary/plan screen,
-which is still the P0 placeholder. The pack itself is not in this repo, so the next scope
-has to come from you.
+## P3 — Plan + Map places groundwork (in progress)
+- Leaflet + react-leaflet added.
+
+## Next: implement real plan + places (itinerary skeleton, places list, Nominatim search, Leaflet map with pins).
