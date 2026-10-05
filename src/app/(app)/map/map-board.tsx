@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/cn";
 import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Ballot } from "./ballot";
 import { PlaceSearch } from "./place-search";
 
 const LeafletMap = dynamic(() => import("./leaflet-map"), {
@@ -36,11 +37,21 @@ type Props = {
   days: TripDay[];
   initial: MapPayload;
   editable: boolean;
+  /** Who is asking, so the ballot can show their own vote and the owner tools. */
+  viewerId: string;
+  isOwner: boolean;
 };
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function MapBoard({ tripId, days, initial, editable }: Props) {
+export function MapBoard({
+  tripId,
+  days,
+  initial,
+  editable,
+  viewerId,
+  isOwner,
+}: Props) {
   // "All days" is a string, because day index 0 is a real day and `null` would
   // have to mean both "no filter" and "day one".
   const [day, setDay] = useState<number | "all">("all");
@@ -184,6 +195,7 @@ export function MapBoard({ tripId, days, initial, editable }: Props) {
               days={days}
               day={day}
               editable={editable}
+              viewerId={viewerId}
             />
           ) : (
             <div className="flex h-full items-center justify-center">
@@ -215,6 +227,14 @@ export function MapBoard({ tripId, days, initial, editable }: Props) {
           )}
         </div>
       </div>
+
+      <Ballot
+        payload={payload}
+        viewerId={viewerId}
+        days={days}
+        isOwner={isOwner}
+        editable={editable}
+      />
     </div>
   );
 }

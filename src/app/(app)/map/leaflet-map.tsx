@@ -25,6 +25,7 @@ type Props = {
   days: TripDay[];
   day: number | "all";
   editable: boolean;
+  viewerId: string;
 };
 
 const PIN_SIZE = 30;
@@ -90,6 +91,7 @@ export default function LeafletMap({
   days,
   day,
   editable,
+  viewerId,
 }: Props) {
   const centre = useMemo(() => centreFor(places), [places]);
   const positions = line.map((place) => [place.lat, place.lng] as [number, number]);
@@ -145,6 +147,7 @@ export default function LeafletMap({
                 days={days}
                 day={day}
                 editable={editable}
+                viewerId={viewerId}
               />
             </Popup>
           </Marker>

@@ -6,7 +6,7 @@ import { readMapData } from "@/lib/maps/service";
 import { MapBoard } from "./map-board";
 
 export default async function MapPage() {
-  const { trip } = await requireSession();
+  const { trip, member } = await requireSession();
   const ended = tripHasEnded(trip.end_date);
 
   // Same pure builder the polling route uses, so the first paint and every 5s
@@ -17,6 +17,9 @@ export default async function MapPage() {
     (total, route) => total + route.placeIds.length,
     0,
   );
+  const candidates = payload.places.filter(
+    (place) => place.status !== "locked",
+  ).length;
 
   return (
     <>
@@ -29,9 +32,17 @@ export default async function MapPage() {
         }
         badge={ended ? "Read-only" : undefined}
       />
-      <MapBoard tripId={trip.id} days={days} initial={payload} editable={!ended} />
+      <MapBoard
+        tripId={trip.id}
+        days={days}
+        initial={payload}
+        editable={!ended}
+        viewerId={member.id}
+        isOwner={member.role === "owner" && trip.owner_member_id === member.id}
+      />
       <p className="mt-2 text-center text-[11px] font-semibold text-ink-soft">
-        {payload.places.length} pins · {stops} planned stops
+        {payload.places.length} pins · {stops} planned stops · {candidates} on the
+        ballot
       </p>
     </>
   );
