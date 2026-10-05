@@ -320,12 +320,16 @@ async function main() {
     buildExpense("66666666-6666-4666-8666-666666666606", "Sana", 36700, "food", "2026-11-13", "Fish market lunch", everyone),
     buildExpense("66666666-6666-4666-8666-666666666607", "Ravi", 219900, "activities", "2026-11-13", "Kayak rental at Kesari", ["Ravi", "Sana", "Dev"]),
     buildExpense("66666666-6666-4666-8666-666666666608", "Dev", 152300, "shopping", "2026-11-13", "Shell necklaces and kite", everyone),
-    buildExpense("66666666-6666-4666-8666-666666666609", "Bhoomi", 324000, "activities", "2026-11-14", "Camping at Chandra Talav", everyone),
+    // Unequal shares on purpose: the ledger has to show something other than
+    // a perfect third. They still add up to the amount, or the balances lie.
+    buildExpense("66666666-6666-4666-8666-666666666609", "Bhoomi", 324000, "activities", "2026-11-14", "Camping at Chandra Talav", everyone, {
+      Bhoomi: 100000,
+      Ravi: 90000,
+      Sana: 70000,
+      Dev: 64000,
+    }),
     buildExpense("66666666-6666-4666-8666-666666666610", "Ravi", 96800, "transport", "2026-11-14", "Night drive fuel back", everyone),
   ];
-
-  const settledSplit = equalShares(324000, everyone);
-  settledSplit[1] = { ...settledSplit[1], share_paise: 100000 };
 
   const settlements: Tables["settlements"]["Insert"][] = [
     {
@@ -423,14 +427,6 @@ async function main() {
       .from("expense_splits")
       .insert(expenses.flatMap((entry) => entry.splits), WRITES);
   });
-
-  await save("mixed-split example (unequal shares)", () =>
-    supabase.from("expense_splits").upsert(settledSplit.map((split) => ({
-      expense_id: "66666666-6666-4666-8666-666666666609",
-      member_id: split.member_id,
-      share_paise: split.share_paise,
-    })), WRITES),
-  );
 
   await save(`settlements (${settlements.length})`, () =>
     supabase.from("settlements").upsert(settlements, WRITES),

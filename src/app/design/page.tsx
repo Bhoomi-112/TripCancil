@@ -19,6 +19,7 @@ import {
   ToastSection,
   WindowSection,
 } from "./sections";
+import { MoneySection } from "./money-section";
 
 const groups = [
   { label: "Foundations", Sections: [FoundationsSection] },
@@ -33,6 +34,7 @@ const groups = [
   { label: "Toasts", Sections: [ToastSection] },
   { label: "Skeletons", Sections: [LoadingSection] },
   { label: "Empty states", Sections: [EmptyStateSection] },
+  { label: "Money", Sections: [MoneySection] },
   { label: "Shell", Sections: [ShellSection] },
 ];
 

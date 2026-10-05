@@ -18,13 +18,15 @@ npm run dev
 - `http://localhost:3000/plan` — trip home + day-by-day itinerary (drag to reorder, live)
 - `http://localhost:3000/trips` — every trip this device has signed into, one tap to open
 - `http://localhost:3000/map` — pins by vibe, day chips, a dashed line through the day's stops
-- `/money` `/photos` `/trip` — the other tabs
+- `http://localhost:3000/money` — the ledger: expenses, who owes whom, fewest payments to square up
+- `/photos` `/trip` — the other tabs
 
 ## Live updates
 There are no websockets. Authenticated screens poll with SWR every 5s, so a member sees the
 group's edits within about five seconds:
 - `GET /api/trips/[id]/itinerary` — plan board items and the trip's places
 - `GET /api/trips/[id]/places` — map pins, each pin's days, and the visit order per day
+- `GET /api/trips/[id]/money` — members, live expenses, every share, and settlements
 
 Both return 401 signed out and 404 if the id in the path is not the session's trip.
 
@@ -78,6 +80,18 @@ device" on `/trips` deletes both cookies. A trip whose last day has passed opens
 
 ## Money
 All amounts are integer paise (`amount_paise`, `share_paise`, `total_paise`). Never floats.
+
+`/money` reads one payload from `readMoney` in `src/lib/money/service.ts`, shared by the page and
+the polling route, then does the arithmetic in the browser with the pure functions next to it:
+`parsePaise` / `formatPaise` in `src/lib/money/paise.ts`, and `computeBalances` /
+`simplifyDebts` in `src/lib/money/balances.ts`. A split is equal for now and the payer is always
+part of it; the leftover paise goes to the first member id, so shares always add up to the amount.
+Every balance nets to zero across the group, which the test harness asserts on the seeded trip.
+
+Settling up is two taps on purpose. **Log promise** writes a `pending` settlement that moves no
+money; either of the two people involved or the owner then marks it paid, then settled. Removing
+an expense is a soft delete: the row stays as an audit trail and drops out of the totals. An over
+trip is read-only here exactly as it is everywhere else.
 
 ## Deploy to Vercel
 

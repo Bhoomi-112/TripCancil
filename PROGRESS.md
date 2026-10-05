@@ -333,6 +333,61 @@
 - `Tables<T>` is already the `Row` type in `src/lib/db/types.ts`, so `Tables<"places">["Row"]`
   does not exist. There is now an exported `LocationType` alias for the eight vibes.
 
+## P5: the real Money tab (done)
+
+- The placeholder is a ledger: every expense, what each person paid against what they owe, and the
+  fewest payments that get everyone square. One payload, one pure builder, same shape as the map:
+  `readMoney(tripId)` feeds both the server-rendered page and `GET /api/trips/[tripId]/money`, which
+  the board polls every 5s with SWR.
+- **Money is integer paise everywhere.** `amount-input.tsx` takes rupees as free text and the zod
+  schema parses them once with `parsePaise` (`12.345` and `chai` are rejected, `₹ 1,20,000.50` is
+  not). `splitEqually` hands the leftover paise to the first member id in order, so a split always
+  adds up to the amount instead of drifting by a paisa a week.
+- Splitting is equal for now, and the payer is always in the split whether or not their box is
+  ticked, because someone who paid for themselves was always part of it. The form shows the exact
+  per-person figure before you save and hides the flicker when a remainder exists
+  (`₹100.00–₹100.33 each`).
+- **Balances are a pure function of the payload**: `computeBalances` gives paid, share and net per
+  member, `simplifyDebts` then nets the group down to at most `n - 1` payments. Only `paid` and
+  `confirmed` settlements move money; `pending` is a promise and shows up in the balances section
+  without touching anybody's net. The invariant `sum(net) === 0` is asserted on live seeded data.
+- Settling is deliberately two taps: **Log promise** writes a `pending` settlement, then either of
+  the two people involved or the owner marks it paid, then confirmed. Anything else is refused by
+  the service, not hidden in the UI.
+- Expenses are soft-deleted. The row stays with a "removed" note so the split history is still
+  there to explain, but it drops out of the totals and the balances the moment it is deleted.
+- Ended trips are read-only: the page is badged, the log button and settle buttons are gone, and
+  every write is refused in `src/lib/money/service.ts` by `assertTripEditable` anyway. Also refused
+  there: a payer or a split partner who is not in the trip, a spent date outside the trip, an
+  expense id from another trip, and settling up with yourself.
+- `/design` grew a **Money** section: the amount input with a parse error, the category chips, the
+  balance strip with suggested payments, all three settlement statuses, and the expense row.
+
+### How this was verified
+- **89 live checks, all passing**: paise parsing and formatting (including the Indian comma and the
+  three-decimal rejection), exact splitting and the leftover rule, balances, settlements moving or
+  not moving money, soft deletes, the `sum(net) === 0` invariant, six-member debt simplification
+  clearing every debt in 5 payments; then the services against the real database - payer added to
+  the split, cross-trip payer and split partner refused, out-of-trip date refused, edit replacing
+  splits rather than adding to them, an uninvolved member unable to mark a settlement paid, the
+  owner and the payer able to, ended trips refusing both expenses and settlements; then the page and
+  the polling route over HTTP for a live trip, an over trip and the seeded trip, including that no
+  `pin_hash` ever reaches the HTML or the JSON.
+- The seeded camping expense was made deliberately unequal (100000/90000/70000/64000 against
+  ₹3,240.00) because it was the one row where the shares no longer added up to the amount, which
+  made the whole seeded ledger fail the zero-sum invariant. Fixed in `scripts/seed.ts` rather than
+  papered over in the maths.
+- `npm run typecheck`, `npm run lint` and `npm run build` are clean.
+
+### Quirks to remember
+- `computeBalances` returns `memberId` only; display names come from `namesFor(payload)`, because
+  the same builder is used by the design page, which has no database.
+- Anything that mutates money calls `mutate(isMoneyKey)`, same as the map's `isPlacesKey`.
+- Editing an expense passes the existing split down as `splitMemberIds`; without it the form would
+  open with everyone ticked and quietly rewrite who paid for what.
+- `settle-form` keeps both ends in state. A plain `defaultValue` on the recipient select left the
+  preview showing someone who was no longer the recipient.
+
 ## Deferred
 - Place votes: `place_votes` is still empty and nothing counts them, so a candidate has no
   score yet.
@@ -344,6 +399,13 @@
 - Cross-day dragging: items move days through the edit form's day picker, not by dragging a
   row onto another chip.
 - A trip longer than 30 days cannot be planned past day 30 (see `MAX_TRIP_DAYS`).
+- Money: budgets. The `budgets` table is seeded and read nowhere; a bar against a limit is its own
+  prompt.
+- Money: receipts on expenses. `expenses.receipt_path` exists and the private-bucket rule already
+  covers documents, but nothing uploads one yet.
+- Money: unequal splits. The UI splits equally and the ledger handles any set of shares, because
+  deciding who had the bigger tent is a longer conversation than logging it.
+- Money: currency. `trips.base_currency` exists and every screen assumes INR.
 - A traveller account cannot be recovered: there is no email, so a device that is forgotten
   is a new traveller. Its unclaimed memberships can still be re-claimed by entering the PIN
   once; the ones another device already claimed stay with that device. This is a deliberate
@@ -353,4 +415,6 @@
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## Next: P5
+## Next: P6
+- The photobooth is the obvious next tab: canvas captures, themed frames, and a saved album per
+  trip, all client-side until the export goes to a private bucket.
