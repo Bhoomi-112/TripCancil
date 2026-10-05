@@ -13,9 +13,9 @@ export const createPlaceSchema = z.object({
   lng: z
     .string()
     .regex(/^-?\d{1,3}\.\d+$/, "Invalid longitude"),
-  address: z.string().trim().max(240).optional(),
   locationType: z.enum(LOCATION_TYPES),
-  notes: z.string().trim().max(500).optional(),
+  category: z.string().trim().max(40).optional(),
+  status: z.enum(["proposed", "locked"]).optional(),
 });
 
 export type CreatePlaceInput = z.infer<typeof createPlaceSchema>;

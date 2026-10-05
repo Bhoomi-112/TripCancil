@@ -22,9 +22,9 @@ export default async function MapPage() {
           <TripMap places={places} />
         ) : (
           <EmptyState
-            illustration="mountain"
+            illustration="map"
             title="No places pinned yet"
-            description="Add places from the plan screen or via search — they will show up here on the map."
+            description="Add places from the Plan tab, then they will show up here on the map."
           />
         )}
       </div>

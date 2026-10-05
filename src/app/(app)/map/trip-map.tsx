@@ -2,10 +2,15 @@
 
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
-import type { Place } from "@/lib/db/types";
+import type { Tables } from "@/lib/db/types";
+
+export type MapPlace = Pick<
+  Tables<"places">,
+  "id" | "name" | "lat" | "lng" | "location_type"
+>;
 
 type Props = {
-  places: Pick<Place, "id" | "name" | "lat" | "lng" | "location_type">[];
+  places: MapPlace[];
 };
 
 const Map = dynamic(() => import("./leaflet-map"), {
@@ -18,13 +23,12 @@ const Map = dynamic(() => import("./leaflet-map"), {
 });
 
 export function TripMap({ places }: Props) {
-  const center = useMemo(
-    () =>
-      places.length > 0
-        ? { lat: places[0].lat, lng: places[0].lng }
-        : { lat: 19.076, lng: 72.8777 },
-    [places],
-  );
+  const center = useMemo(() => {
+    if (places.length === 0) return { lat: 19.076, lng: 72.8777 };
+    const lat = places.reduce((total, place) => total + place.lat, 0) / places.length;
+    const lng = places.reduce((total, place) => total + place.lng, 0) / places.length;
+    return { lat, lng };
+  }, [places]);
 
   return <Map places={places} center={center} />;
 }

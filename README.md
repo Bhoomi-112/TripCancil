@@ -15,7 +15,12 @@ npm run dev
 
 - `http://localhost:3000` — splash
 - `http://localhost:3000/design` — every UI component in every state (start here)
-- `http://localhost:3000/plan` `/map` `/money` `/photos` `/trip` — app shell
+- `http://localhost:3000/plan` — trip home + day-by-day itinerary (drag to reorder, live)
+- `/map` `/money` `/photos` `/trip` — the other tabs
+
+## Live updates
+There are no websockets. Authenticated screens poll `GET /api/trips/[id]/itinerary` every 5s
+with SWR, so a member sees the group's edits within about five seconds.
 
 ## Database
 ```bash

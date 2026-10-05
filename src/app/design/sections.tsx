@@ -5,7 +5,7 @@ import {
   ButtonLink,
   IconButton,
 } from "@/components/ui/button";
-import { Field, Input, Textarea } from "@/components/ui/input";
+import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { PinInput } from "@/components/auth/pin-input";
 import { QrCode } from "@/components/auth/qr-code";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -240,6 +240,13 @@ export function FormSection() {
           </Field>
         </div>
         <div className="space-y-4">
+          <Field label="Day" htmlFor="d-day" hint="Native select, chips on the Plan tab">
+            <Select id="d-day" defaultValue="1">
+              <option value="0">Day 1 · Fri 12 Sep</option>
+              <option value="1">Day 2 · Sat 13 Sep</option>
+              <option value="2">Day 3 · Sun 14 Sep</option>
+            </Select>
+          </Field>
           <Field label="Notes" htmlFor="d-notes">
             <Textarea
               id="d-notes"

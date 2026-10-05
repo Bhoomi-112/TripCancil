@@ -5,7 +5,8 @@ import { failed, runAction, type ActionState } from "@/lib/actions/state";
 import { getSessionContext, requireSession } from "@/lib/auth/context";
 import { getSupabase } from "@/lib/db/client";
 import { searchPlaces } from "@/lib/maps/nominatim";
-import { createPlaceSchema, formToObject } from "@/lib/validation/places";
+import { createPlaceSchema } from "@/lib/validation/places";
+import { formToObject } from "@/lib/validation/auth";
 
 export async function addPlaceAction(
   _previous: ActionState,
@@ -16,19 +17,19 @@ export async function addPlaceAction(
 
     const parsed = createPlaceSchema.safeParse(formToObject(formData));
     if (!parsed.success) {
-      return { fieldErrors: parsed.error.flatten().fieldErrors };
+      return { fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string> };
     }
 
     const supabase = getSupabase();
     const { error } = await supabase.from("places").insert({
       trip_id: trip.id,
-      added_by_member_id: member.id,
+      proposed_by: member.id,
       name: parsed.data.name,
       lat: parseFloat(parsed.data.lat),
       lng: parseFloat(parsed.data.lng),
-      address: parsed.data.address || null,
       location_type: parsed.data.locationType,
-      notes: parsed.data.notes || null,
+      category: parsed.data.category || null,
+      status: parsed.data.status || "proposed",
     });
 
     if (error) return failed(error.message);

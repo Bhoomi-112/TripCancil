@@ -1,5 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { ChevronDownIcon } from "./icons";
 
 export function Label({
   className,
@@ -59,6 +60,39 @@ export function Textarea({
       )}
       {...props}
     />
+  );
+}
+
+/**
+ * Native select, styled to match `Input`. A styled listbox would need its own
+ * focus trap and keyboard handling for a field the whole group uses to pick a
+ * day, so the platform one wins.
+ */
+export function Select({
+  className,
+  invalid,
+  children,
+  ...props
+}: { invalid?: boolean; className?: string } & Omit<
+  ComponentProps<"select">,
+  "className"
+>) {
+  return (
+    <div className="relative">
+      <select
+        aria-invalid={invalid || undefined}
+        className={cn(
+          fieldShell,
+          "appearance-none pr-10",
+          invalid && "border-hotpink focus:border-hotpink",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </select>
+      <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-ink-soft" />
+    </div>
   );
 }
 

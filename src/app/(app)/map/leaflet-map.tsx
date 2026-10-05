@@ -4,15 +4,16 @@ import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { LOCATION_TYPE_LABELS } from "@/lib/constants";
-import type { Place } from "@/lib/db/types";
+import type { MapPlace } from "./trip-map";
 
 type Props = {
-  places: Pick<Place, "id" | "name" | "lat" | "lng" | "location_type">[];
+  places: MapPlace[];
   center: { lat: number; lng: number };
 };
 
 // Fix for default Leaflet marker icons in Next.js
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: () => void })
+  ._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -23,7 +24,7 @@ export default function LeafletMap({ places, center }: Props) {
   return (
     <MapContainer
       center={[center.lat, center.lng]}
-      zoom={10}
+      zoom={places.length > 0 ? 11 : 5}
       className="h-full w-full rounded-2xl border-2 border-silver-deep shadow-sticker"
     >
       <TileLayer
@@ -35,9 +36,11 @@ export default function LeafletMap({ places, center }: Props) {
           <Popup>
             <div className="flex flex-col gap-1">
               <p className="font-bold text-sm">{place.name}</p>
-              <p className="text-xs text-gray-600">
-                {LOCATION_TYPE_LABELS[place.location_type]}
-              </p>
+              {place.location_type && (
+                <p className="text-xs text-gray-600">
+                  {LOCATION_TYPE_LABELS[place.location_type]}
+                </p>
+              )}
             </div>
           </Popup>
         </Marker>

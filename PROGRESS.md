@@ -132,15 +132,77 @@
   separately from the row's own `isOwner`, because the row role and the viewer's role are
   different questions.
 
+## P3 — Trip home + itinerary builder (done)
+- Days are derived from the trip dates, never stored: `src/lib/itinerary/days.ts` is pure
+  and free of `server-only`, so the screen and the actions share one definition of "day 3".
+  `day_index` stays 0-based in the database and 1-based on screen, with UTC maths and a
+  `MAX_TRIP_DAYS` cap of 30 (longer trips would need a different day picker than chips).
+- `src/lib/itinerary/service.ts` — `readItinerary`, `createItem`, `updateItem`, `deleteItem`,
+  `reorderDay`, all behind `requireSession`. Every write is additionally filtered by
+  `trip_id`, so a crafted id from another trip is a no-op, and a `place_id` from another
+  trip is silently dropped instead of attached.
+- `reorderDay` takes the day's full new order from the client and appends anything it did
+  not know about (an item another member added mid-drag) in its existing relative order, so
+  a concurrent edit can never make an item disappear or get double-positioned.
+- Server actions in `src/app/(app)/plan/actions.ts` (create, update, delete, reorder) all
+  validate with zod and `revalidatePath("/plan")`. The reorder action takes plain arguments
+  rather than `FormData` because a drag has no form to submit.
+- `GET /api/trips/[tripId]/itinerary` is the poll target: it re-checks the session, and the
+  `tripId` in the path against `context.trip.id`, before returning items + places. 401 when
+  signed out, 404 for someone else's trip, and it never returns a storage path.
+- The Plan screen is server-rendered first paint (`TripHeader` with name, dates, destination,
+  location badge and the crew's avatars) and then a client `PlanBoard` that SWR-polls the
+  route above every 5s with the server payload as `fallbackData`. The "live 5s" chip in the
+  header is that poll, made visible.
+- Drag-and-drop is `@dnd-kit/sortable` with a `PointerSensor` at an 8px activation distance
+  (so taps still edit and the list still scrolls on touch) plus a `KeyboardSensor`. The new
+  order is applied locally first, the poll is paused for the round trip so it cannot yank a
+  row back mid-flight, and a failed save falls back to a refetch with an error toast.
+- Add / edit share one form (`ItineraryItemForm`) because both actions return the same
+  `ActionState`; delete goes through a confirm modal rather than `window.confirm`.
+- `Select` and `GripIcon` were added to the UI kit, and `Select` is in `/design`.
+
+### How P3 was verified
+- **57/57 checks** in a throwaway harness running the real service against the live Supabase
+  project: day maths (single day, inclusive range, cross-month, leap day, reversed and junk
+  dates, 30-day clamp), time normalisation and formatting, zod rejection of blank titles,
+  day -1/30, `25:00` and junk uuids; create normalises `07:15` to `07:15:00`, copies the
+  place's `location_type`, nulls blank notes and increments `position`; a day past the trip
+  end and `day_index: 999` are both refused; a place from another trip is dropped; reorder
+  persists and renumbers from 0, ignores ids from nowhere and keeps unlisted items; update
+  moves an item across days onto the end of the new day; an update or delete carrying
+  another trip's id changes nothing; the read payload is sorted and carries no storage
+  paths. Harness rows were deleted and the seeded positions renumbered afterwards.
+- Over real HTTP against `next start`: `/plan` redirects a signed-out browser to `/join`; the
+  itinerary route answers 401 with no cookie and with a garbage cookie, 200 with a signed
+  cookie, and 404 when the path carries another trip's id. A second member's insert showed
+  up on the very next poll and disappeared on the one after the delete.
+- Server-rendered `/plan` HTML contains the trip window, the crew, all three day chips, both
+  of Day 1's items with their times, place names and notes, and the tablist.
+- `npm run typecheck`, `npm run lint` and `npm run build` are clean.
+
+### Quirks to remember
+- The P3 groundwork commit had five type errors left in it (a `Place` type that was never
+  exported, a nullable `location_type` used as a record key, and two `EmptyState`
+  illustrations that do not exist: the art set is `beach | map | camera | coins | suitcase |
+  cloud`). All fixed.
+- `useSWR` returns `data?.items ?? []` fresh on every render, which the lint rules read as a
+  new dependency for each `useMemo`/`useCallback`; both are wrapped in `useMemo` to keep the
+  optimistic rewrite and the per-day counts stable.
+- Any partial-column insert in this app must pass `defaultToNull: false`; `createItem`
+  writes every column explicitly so it never depends on that.
+
 ## Deferred
-- Nothing from P0 to P2. Still to do: transferring ownership, letting the owner leave,
-  and password-recovery-by-owner is only a PIN reset (no trip-admin takeover).
+- Nothing from P0 to P3. Still to do: transferring ownership, letting the owner leave, and
+  password-recovery-by-owner is only a PIN reset (no trip-admin takeover).
+- Cross-day dragging: items move days through the edit form's day picker, not by dragging a
+  row onto another chip.
+- A trip longer than 30 days cannot be planned past day 30 (see `MAX_TRIP_DAYS`).
 
 ## Known bugs
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## P3 — Plan + Map places groundwork (in progress)
-- Leaflet + react-leaflet added.
-
-## Next: implement real plan + places (itinerary skeleton, places list, Nominatim search, Leaflet map with pins).
+## Next: P4 — the real Map tab (pins by location_type, day filter chips, a day's polyline,
+Nominatim search behind a server proxy that can add the result as a candidate place or drop
+it straight into a day).
