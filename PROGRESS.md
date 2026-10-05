@@ -1,6 +1,6 @@
 # PROGRESS
 
-## P0 — Scaffold + theme + components (done)
+## P0 â€” Scaffold + theme + components (done)
 - Next.js 16 App Router + TypeScript strict + Tailwind v4 (`@theme` tokens, no config file).
 - Fonts: `Press Start 2P` (display) + `Nunito` (body), self-hosted via `next/font`.
 - Palette tokens: cream / ink / electric / hot pink / lime / cyan / grape / silver / sunny,
@@ -17,18 +17,18 @@
   `/plan` `/map` `/money` `/photos` `/trip` (placeholders that demo skeleton + empty state).
 - Reduced motion respected globally; body copy is 16px+ and high contrast on cream.
 
-## P1 — Database schema (done)
+## P1 â€” Database schema (done)
 - `supabase/migrations/001_init.sql`: 13 tables, 8 enums, RLS enabled on every table with
   zero policies, `trip_id` indexes, four private buckets, explicit `revoke` of anon and
   authenticated privileges plus `revoke create on schema public`.
 - Money is `bigint` paise everywhere with `> 0` / `>= 0` checks; lat/lng, dates, vote
   values, self-settlements and non-object category caps are all constrained in the DB.
 - Circular FK handled: `trips.owner_member_id` is added after `members` exists.
-- `src/lib/db/types.ts` — full hand-written `Database` type with `Relationships` for every
+- `src/lib/db/types.ts` â€” full hand-written `Database` type with `Relationships` for every
   FK, so `select("*, members(*)")` stays typed in later prompts.
-- `src/lib/db/client.ts` — `import "server-only"`, cached service-role client, no anon key.
-- `src/lib/env.ts` — lazy accessors, so builds never need env vars at import time.
-- `scripts/seed.ts` — fixed UUIDs so it is re-runnable; 1 trip, 4 members (PIN 123456),
+- `src/lib/db/client.ts` â€” `import "server-only"`, cached service-role client, no anon key.
+- `src/lib/env.ts` â€” lazy accessors, so builds never need env vars at import time.
+- `scripts/seed.ts` â€” fixed UUIDs so it is re-runnable; 1 trip, 4 members (PIN 123456),
   6 places, 19 votes, 6 itinerary items, 12 packing items, budget, 10 expenses with exact
   splits (one equal-with-remainder, one exact split, one unequal split), 2 settlements.
   `npm run seed -- --dry-run` validates and prints without writing; the script throws if any
@@ -36,7 +36,7 @@
 
 ### How P1 was verified
 - The migration was applied to a real Postgres engine (PGlite/WASM) in a throwaway harness:
-  **50/50 checks pass** — all 13 tables created, RLS on with 0 policies, anon and
+  **50/50 checks pass** â€” all 13 tables created, RLS on with 0 policies, anon and
   authenticated have no table privileges, 4 buckets inserted as private, 20+ indexes, and
   12 negative tests (negative amount, bad vote value, self-settlement, duplicate display
   name, short invite code, reversed dates, lat out of range, non-object caps, unknown enum
@@ -67,26 +67,26 @@
 - The service-role key lives only in `.env.local` (gitignored) and in Vercel's environment
   variables. It must never be prefixed `NEXT_PUBLIC_`.
 
-## P2 — Auth: invite code + display name + PIN (done)
-- `src/lib/auth/codes.ts` — 12-character codes from `crypto.randomBytes` with rejection
+## P2 â€” Auth: invite code + display name + PIN (done)
+- `src/lib/auth/codes.ts` â€” 12-character codes from `crypto.randomBytes` with rejection
   sampling over a 32-glyph alphabet (no `I O 0 1`), so a code read aloud survives a
   forward. Input is uppercased and stripped of punctuation, so typing is forgiving.
-- `src/lib/auth/password.ts` — bcrypt cost 10 via `bcryptjs`. `burnPinCompare` compares
+- `src/lib/auth/password.ts` â€” bcrypt cost 10 via `bcryptjs`. `burnPinCompare` compares
   against a decoy hash when the member does not exist, so a missing member costs the same
   time as a wrong PIN and the two cannot be told apart by timing.
-- `src/lib/auth/session.ts` — HS256 JWT via `jose` in an httpOnly, `SameSite=Lax`,
+- `src/lib/auth/session.ts` â€” HS256 JWT via `jose` in an httpOnly, `SameSite=Lax`,
   `Secure`-in-production cookie, 14-day expiry. The token carries only `member_id` (sub)
   and `trip_id`: role, name and membership are re-read from the database on every
   request, so removing a member or changing a role takes effect immediately instead of
   living on inside a cookie for a fortnight.
-- `src/lib/auth/context.ts` — `requireSession` is the single gate for every read and
+- `src/lib/auth/context.ts` â€” `requireSession` is the single gate for every read and
   write. It re-reads the member row, rejects a token whose `trip_id` disagrees with the
   member it points at, and redirects to `/join`. `requireOwner` gates the owner tools.
-- `src/lib/auth/rate-limit.ts` — 5 wrong PINs locks that member for 15 minutes
+- `src/lib/auth/rate-limit.ts` â€” 5 wrong PINs locks that member for 15 minutes
   (`members.failed_attempts` + `locked_until`), plus an IP throttle of 20 failures per
   15 minutes from `login_attempts`, which also covers attempts that never resolved to a
   member. Resetting a PIN clears the lockout with it.
-- `src/lib/auth/service.ts` — `createTrip`, `joinOrLogin`, `loginWithPin`,
+- `src/lib/auth/service.ts` â€” `createTrip`, `joinOrLogin`, `loginWithPin`,
   `rotateInviteCode`. No cookie writes and no `next/headers` reads here: the actions pass
   the client IP in, which keeps the business logic testable outside a request.
   An unknown display name with the invite code *joins* (the code is the invitation and the
@@ -99,7 +99,7 @@
   the owner actions re-check ownership inside the action rather than trusting the UI.
 - Screens: `/join` (invite code + name + PIN, one form for both joining and signing in),
   `/new` (create a trip and mint the code), and `/trip`, which is now real: the invite
-  plate with a copy/share button, an SVG QR that scans into `/join?code=…`, the crew list,
+  plate with a copy/share button, an SVG QR that scans into `/join?code=â€¦`, the crew list,
   and the owner tools. `(app)/layout.tsx` gates the app, `(auth)/layout.tsx` bounces
   signed-in users to `/plan`. No `proxy.ts`/middleware: Next 16 deprecates it in favour of
   doing this in the layout, where the membership check can actually reach the database.
@@ -132,12 +132,12 @@
   separately from the row's own `isOwner`, because the row role and the viewer's role are
   different questions.
 
-## P3 — Trip home + itinerary builder (done)
+## P3 â€” Trip home + itinerary builder (done)
 - Days are derived from the trip dates, never stored: `src/lib/itinerary/days.ts` is pure
   and free of `server-only`, so the screen and the actions share one definition of "day 3".
   `day_index` stays 0-based in the database and 1-based on screen, with UTC maths and a
   `MAX_TRIP_DAYS` cap of 30 (longer trips would need a different day picker than chips).
-- `src/lib/itinerary/service.ts` — `readItinerary`, `createItem`, `updateItem`, `deleteItem`,
+- `src/lib/itinerary/service.ts` â€” `readItinerary`, `createItem`, `updateItem`, `deleteItem`,
   `reorderDay`, all behind `requireSession`. Every write is additionally filtered by
   `trip_id`, so a crafted id from another trip is a no-op, and a `place_id` from another
   trip is silently dropped instead of attached.
@@ -212,7 +212,7 @@
   adopted the first time their owner signs in again, and a wrong PIN claims nothing.
 - `listTravellerTrips` (`src/lib/traveller/service.ts`) reads the traveller's memberships in
   one embed plus one read per child table for the counts, so a dashboard with a dozen trips is
-  6 queries, not one per trip. It returns ids, names, dates, counts and `ended` only — no pin
+  6 queries, not one per trip. It returns ids, names, dates, counts and `ended` only â€” no pin
   hashes, no storage paths. The embed needs the `trips!members_trip_id_fkey(...)` hint
   because `trips.owner_member_id` is a second relationship to `members`.
 - `/trips` lives outside the `(app)` group, since it cannot require a trip to be open. It
@@ -228,8 +228,8 @@
   so a bad payload cannot reach Postgres and surface a raw constraint error.
 - `deleteTrip` deletes storage first: it walks all four private buckets under `<trip id>/`
   a page at a time (folders in Supabase Storage are prefixes, so it recurses) and refuses to
-  drop the trip row if any removal fails, because the cascade would orphan files — someone's
-  passport scan — with nothing left pointing at them. Deleting needs the trip name typed.
+  drop the trip row if any removal fails, because the cascade would orphan files â€” someone's
+  passport scan â€” with nothing left pointing at them. Deleting needs the trip name typed.
 - Ended trips are read-only everywhere, not just here: `tripHasEnded(endDate, today)` in
   `src/lib/constants.ts` (`end_date < todayUtcISO()`, UTC because trip dates are `date`), and
   the P3 itinerary service now calls `assertTripEditable` on all four writes.
@@ -278,7 +278,67 @@
   groups, worth revisiting if a trip ever holds thousands of expenses.
 - Every partial-column insert still needs `defaultToNull: false` (see P1).
 
+## P4: the real Map tab (done)
+
+- The placeholder that only drew pins now filters, orders and edits. One payload, one pure
+  builder: `buildMapPayload(places, items)` in `src/lib/maps/places.ts` is called by both the
+  server-rendered page and `GET /api/trips/[tripId]/places`, so the first paint and every 5s
+  refresh are the same shape and pins never reshuffle.
+- **Day association lives on `itinerary_items.place_id`, not on the place.** A pin can be in
+  no day, one day or several, and the map joins the two tables to work out visit order:
+  `routes` is `dayIndex -> place ids in plan order`, deduplicated, so the same place twice in
+  a day is one stop and one pin.
+- Day chips (`All days`, `Day 1`...`Day N`) filter the pins and, on a single day, draw the
+  order: a dashed pink line with a white casing over the tiles, each pin numbered by its
+  position in the day. Vibe chips carry the colour that fills the pin and show a count within
+  the day being looked at; filtering a vibe rebuilds the line so it never runs to a hidden pin.
+  "about 18 km end to end" is the great-circle total of the day's stops.
+- Pins are Leaflet `divIcon`s, coloured by `location_type`, so the map loads no marker images
+  from a CDN and a stop number fits inside the pin. The vibe palette lives next to
+  `LOCATION_TYPE_LABELS` in `src/lib/constants.ts` as `LOCATION_TYPE_COLOURS`.
+- Search goes through the server: the browser posts to `searchPlacesAction`, and
+  `src/lib/maps/nominatim.ts` is the only thing that talks to Nominatim. It sends the real
+  `User-Agent` the policy asks for and spaces calls out by 1.1s, so a group hammering the
+  button queues instead of getting the API to throttle everyone else.
+- Each hit gets two buttons: **Propose** writes a `status: 'proposed'` candidate with the
+  proposer's `members.id`, and **Add to Day N** creates the pin as `locked` and drops a stop
+  on that day in one action. The vibe defaults to a guess from the result's words
+  (`guessLocationType`) and stays a dropdown, because Nominatim has never heard of a beach day.
+- A result can also be pinned to a day from the pin's own pop-up. If the name already exists on
+  the trip (whitespace and case normalised) the existing pin is reused instead of duplicated,
+  then it flips `proposed` -> `locked`, because a place that is in the plan is no longer a
+  candidate.
+- Every pin write goes through `assertTripEditable` and reuses the itinerary service for the
+  stop, so an over trip gets the read-only badge, no Propose button and no pop-up form, and
+  still reads.
+- 5s SWR polling on `/api/trips/[tripId]/places`, which answers 401 signed out, 404 for another
+  trip's id, and only ever returns the signed-in member's own trip.
+
+### How this was verified
+- **58 live checks, all passing**, across the pure builder, the services and real HTTP: payload
+  ordering, dedupe, unknown and null `place_id`s ignored, poll stability, order-over-alphabet,
+  Mumbai-Pune distance, all eight `guessLocationType` cases; the propose/pin/search services
+  including ended-trip refusal, another trip's pin, a day outside the trip and the reuse-a-pin
+  path; the map page and polling route over HTTP for a live trip and an over trip; and the
+  Nominatim proxy answering a real search twice in a row, 1.1s apart.
+- `npm run typecheck`, `npm run lint` and `npm run build` are clean.
+
+### Quirks to remember
+- Anything that mutates a pin calls `mutate(isPlacesKey)` instead of being handed the trip id,
+  because the search list, the pop-up form and the board all sit at different depths.
+- `status` is not decoration: the Plan tab's place picker reads `locked` as "already in the
+  plan", so flipping it when a pin lands in a day is what keeps the two screens agreeing.
+- `react-leaflet` exports no `divIcon`; it comes from `leaflet`. And `L.Control.Scale` cannot
+  be used as a JSX element, so the map has no scale bar.
+- `Tables<T>` is already the `Row` type in `src/lib/db/types.ts`, so `Tables<"places">["Row"]`
+  does not exist. There is now an exported `LocationType` alias for the eight vibes.
+
 ## Deferred
+- Place votes: `place_votes` is still empty and nothing counts them, so a candidate has no
+  score yet.
+- Deleting or moving a pin from the map. Adding is covered; removal waits on a prompt that
+  says what should happen to stops already pointing at it.
+- Marker clustering. Six pins look great, forty in one weekend will need it.
 - Nothing from P0 to P3. Still to do: transferring ownership, letting the owner leave, and
   password-recovery-by-owner is only a PIN reset (no trip-admin takeover).
 - Cross-day dragging: items move days through the edit form's day picker, not by dragging a
@@ -293,6 +353,4 @@
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## Next: P4 — the real Map tab (pins by location_type, day filter chips, a day's polyline,
-Nominatim search behind a server proxy that can add the result as a candidate place or drop
-it straight into a day).
+## Next: P5

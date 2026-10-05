@@ -17,11 +17,28 @@ npm run dev
 - `http://localhost:3000/design` — every UI component in every state (start here)
 - `http://localhost:3000/plan` — trip home + day-by-day itinerary (drag to reorder, live)
 - `http://localhost:3000/trips` — every trip this device has signed into, one tap to open
-- `/map` `/money` `/photos` `/trip` — the other tabs
+- `http://localhost:3000/map` — pins by vibe, day chips, a dashed line through the day's stops
+- `/money` `/photos` `/trip` — the other tabs
 
 ## Live updates
-There are no websockets. Authenticated screens poll `GET /api/trips/[id]/itinerary` every 5s
-with SWR, so a member sees the group's edits within about five seconds.
+There are no websockets. Authenticated screens poll with SWR every 5s, so a member sees the
+group's edits within about five seconds:
+- `GET /api/trips/[id]/itinerary` — plan board items and the trip's places
+- `GET /api/trips/[id]/places` — map pins, each pin's days, and the visit order per day
+
+Both return 401 signed out and 404 if the id in the path is not the session's trip.
+
+## Places and search
+`/map` reads one payload from `buildMapPayload` in `src/lib/maps/places.ts`, shared by the page
+and the polling route, so the first paint and every refresh agree. A pin's `location_type` is
+its colour, a stop's day comes from `itinerary_items.place_id`, and picking a day draws that
+day's stops in plan order.
+
+Place search runs through the server: `src/lib/maps/nominatim.ts` is the only caller of
+Nominatim's public API, with the `User-Agent` their policy requires and one request per 1.1s.
+A hit can be proposed as a candidate (`places.status = 'proposed'`) or dropped straight into a
+day, which creates the pin as `locked` plus the itinerary item. Re-searching a spot already on
+the trip reuses that pin instead of adding a second one.
 
 ## Database
 ```bash

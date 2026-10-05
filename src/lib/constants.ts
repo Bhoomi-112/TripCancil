@@ -25,6 +25,22 @@ export const LOCATION_TYPE_LABELS: Record<LocationType, string> = {
   roadtrip: "Road trip",
 };
 
+/**
+ * One colour per vibe, used by the map pins, the type filters and the legend.
+ * Dark enough for white text on top, and deliberately spread across the wheel so
+ * a legend chip still reads next to its neighbours on a phone in sunlight.
+ */
+export const LOCATION_TYPE_COLOURS: Record<LocationType, string> = {
+  beach: "#0369a1",
+  mountain: "#6d28d9",
+  city: "#b91c1c",
+  forest: "#15803d",
+  desert: "#b45309",
+  heritage: "#7c2d12",
+  snow: "#0e7490",
+  roadtrip: "#db2777",
+};
+
 const DATE_FORMAT = new Intl.DateTimeFormat("en-IN", {
   day: "numeric",
   month: "short",

@@ -1,33 +1,38 @@
 import { ScreenHeader } from "@/components/shell/screen-header";
-import { EmptyState } from "@/components/ui/empty-state";
 import { requireSession } from "@/lib/auth/context";
-import { getSupabase } from "@/lib/db/client";
-import { TripMap } from "./trip-map";
+import { tripHasEnded } from "@/lib/constants";
+import { tripDays } from "@/lib/itinerary/days";
+import { readMapData } from "@/lib/maps/service";
+import { MapBoard } from "./map-board";
 
 export default async function MapPage() {
   const { trip } = await requireSession();
-  const supabase = getSupabase();
+  const ended = tripHasEnded(trip.end_date);
 
-  const { data: places } = await supabase
-    .from("places")
-    .select("id, name, lat, lng, location_type")
-    .eq("trip_id", trip.id)
-    .order("created_at", { ascending: true });
+  // Same pure builder the polling route uses, so the first paint and every 5s
+  // refresh are the same shape.
+  const payload = await readMapData(trip.id);
+  const days = tripDays(trip.start_date, trip.end_date);
+  const stops = payload.routes.reduce(
+    (total, route) => total + route.placeIds.length,
+    0,
+  );
 
   return (
     <>
-      <ScreenHeader title="Map" subtitle="Pins for all the places you are keen to hit" />
-      <div className="h-[calc(100vh-12rem)] md:h-[calc(100vh-8rem)]">
-        {places && places.length > 0 ? (
-          <TripMap places={places} />
-        ) : (
-          <EmptyState
-            illustration="map"
-            title="No places pinned yet"
-            description="Add places from the Plan tab, then they will show up here on the map."
-          />
-        )}
-      </div>
+      <ScreenHeader
+        title="Map"
+        subtitle={
+          ended
+            ? "Every pin from the trip, in visit order"
+            : "Pins by vibe, day by day"
+        }
+        badge={ended ? "Read-only" : undefined}
+      />
+      <MapBoard tripId={trip.id} days={days} initial={payload} editable={!ended} />
+      <p className="mt-2 text-center text-[11px] font-semibold text-ink-soft">
+        {payload.places.length} pins · {stops} planned stops
+      </p>
     </>
   );
 }

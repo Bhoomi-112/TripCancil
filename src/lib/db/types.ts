@@ -688,3 +688,6 @@ export type TablesUpdate<T extends keyof Database["public"]["Tables"]> =
 
 export type Enums<T extends keyof Database["public"]["Enums"]> =
   Database["public"]["Enums"][T];
+
+/** The eight vibes, e.g. for a `location_type` picker or a pin colour. */
+export type LocationType = Enums<"location_type">;

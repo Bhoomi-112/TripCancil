@@ -16,6 +16,7 @@ Responsive, multi-user web app for FRIEND GROUPS: plan a trip, track and split e
 - Next.js App Router + TypeScript (strict) + Tailwind CSS
 - Supabase used ONLY as Postgres + Storage. NO Supabase Auth, NO Realtime.
 - Leaflet + OpenStreetMap (react-leaflet), Nominatim for place search
+- Nominatim is reached only from `src/lib/maps/nominatim.ts`: real `User-Agent`, one request per 1.1s, never from the browser.
 - Canvas API for photobooth (client-side)
 - `qrcode` npm package, `jose` (JWT), `bcryptjs`, `zod`
 

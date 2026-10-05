@@ -15,6 +15,21 @@ export type NominatimResult = {
   osm_id?: number;
 };
 
+/**
+ * Nominatim's usage policy is one request per second and a real User-Agent, so
+ * this module is the single place that talks to it: the browser never sees the
+ * endpoint, and concurrent searches from one server instance queue up instead of
+ * hammering a shared free API.
+ */
+const MIN_INTERVAL_MS = 1100;
+let lastRequestAt = 0;
+
+async function waitForSlot(): Promise<void> {
+  const wait = lastRequestAt + MIN_INTERVAL_MS - Date.now();
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  lastRequestAt = Date.now();
+}
+
 export async function searchPlaces(query: string): Promise<NominatimResult[]> {
   const q = query.trim();
   if (q.length < 2) return [];
@@ -22,8 +37,10 @@ export async function searchPlaces(query: string): Promise<NominatimResult[]> {
   const url = new URL(NOMINATIM_ENDPOINT);
   url.searchParams.set("q", q);
   url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("limit", "10");
+  url.searchParams.set("limit", "8");
   url.searchParams.set("addressdetails", "1");
+
+  await waitForSlot();
 
   const res = await fetch(url, {
     headers: {

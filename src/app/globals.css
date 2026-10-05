@@ -198,6 +198,54 @@
     background: var(--color-hotpink);
     color: #fff;
   }
+
+  /*
+   * Map pins are Leaflet divIcons, which render outside Tailwind's cascade, so
+   * the one bit of pin styling lives here. `--pin` carries the vibe colour.
+   */
+  .tc-pin {
+    display: grid;
+    place-items: center;
+  }
+
+  .tc-pin__body {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border: 2px solid #fff;
+    border-radius: 9999px;
+    background: var(--pin);
+    box-shadow:
+      0 0 0 2px rgb(37 26 66 / 0.55),
+      0 3px 6px rgb(37 26 66 / 0.35);
+    color: #fff;
+    font-family: var(--font-display), "Courier New", monospace;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+  }
+
+  /* Leaflet's own chrome is not Y2K, so the popup gets the house frame. */
+  .leaflet-popup-content-wrapper {
+    border: 2px solid var(--color-silver-deep);
+    border-radius: 14px;
+    background: var(--color-cream);
+    box-shadow: 0 6px 0 rgb(37 26 66 / 0.18);
+  }
+
+  .leaflet-popup-content {
+    margin: 10px 12px;
+  }
+
+  .leaflet-popup-tip {
+    background: var(--color-cream);
+  }
+
+  .leaflet-container {
+    font-family: var(--font-body), ui-rounded, "Segoe UI", sans-serif;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
