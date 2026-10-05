@@ -26,6 +26,9 @@ Responsive, multi-user web app for FRIEND GROUPS: plan a trip, track and split e
 - Session = signed JWT (jose) in an httpOnly, Secure, SameSite=Lax cookie containing member_id + trip_id. 14-day expiry.
 - Login rate limiting: 5 failed PIN attempts per member => 15-minute lockout (stored in DB). Also throttle by IP.
 - Owner can reset a member's PIN. Owner can remove a member.
+- A `travelers` row is a person, not a login: no email, no password, nothing to guess. It exists so one person can hold memberships in several trips. `members.traveler_id` points at it (first claim wins, `traveler_id is null` predicate, never a silent handover).
+- Device trust = signed `tc_traveller` cookie (traveller_id, 180 days, same flags as the session cookie). It is NOT a trip session: every trip screen still needs `tc_session`, and one-tap open re-checks the membership row for that traveller before minting one. Offer "Forget this device" wherever it is minted.
+- Trip dates are `date`, so "is this trip over" is `end_date < todayUtcISO()` (UTC, `tripHasEnded`). Ended trips are read-only: gate every write, not just the ones that feel obvious.
 - ALL database and storage access happens in server code (route handlers / server actions) using the Supabase service-role key. The service-role key must never reach the browser.
 - Enable RLS on every table with NO policies (deny-all to anon key). The anon key is not used for data.
 - Every server handler must: verify session, verify membership in the trip being accessed, validate input with zod. No exceptions.

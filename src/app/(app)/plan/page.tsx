@@ -1,5 +1,6 @@
 import { TripHeader } from "@/components/plan/trip-header";
 import { requireSession } from "@/lib/auth/context";
+import { tripHasEnded } from "@/lib/constants";
 import { getSupabase } from "@/lib/db/client";
 import { tripDays } from "@/lib/itinerary/days";
 import { readItinerary } from "@/lib/itinerary/service";
@@ -27,6 +28,7 @@ export default async function PlanPage() {
         tripId={trip.id}
         days={tripDays(trip.start_date, trip.end_date)}
         initial={itinerary}
+        editable={!tripHasEnded(trip.end_date)}
       />
     </>
   );

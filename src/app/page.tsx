@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
+import { readTraveller } from "@/lib/traveller/session";
 import { ButtonLink } from "@/components/ui/button";
-import { SparkleIcon, StarIcon } from "@/components/ui/icons";
+import { SparkleIcon, StarIcon, SuitcaseIcon } from "@/components/ui/icons";
 import { AvatarStack } from "@/components/ui/avatar";
 
 const perks = [
@@ -10,7 +11,9 @@ const perks = [
   ["Relive it", "Album plus a scrollable year-in-review recap"],
 ];
 
-export default function Home() {
+export default async function Home() {
+  // A device that has signed into a trip before gets a way straight back to it.
+  const returning = Boolean(await readTraveller());
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-12">
       {Array.from({ length: 12 }, (_, index) => (
@@ -50,6 +53,12 @@ export default function Home() {
           <ButtonLink href="/new" variant="accent" size="lg">
             Start a trip
           </ButtonLink>
+          {returning && (
+            <ButtonLink href="/trips" variant="pop" size="lg">
+              <SuitcaseIcon className="size-5" />
+              My trips
+            </ButtonLink>
+          )}
           <ButtonLink href="/design" variant="chrome" size="lg">
             Review the look
           </ButtonLink>

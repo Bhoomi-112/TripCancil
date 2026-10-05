@@ -17,12 +17,15 @@ export function ItineraryRow({
   item,
   order,
   placeName,
+  editable = true,
   onEdit,
   onDelete,
 }: {
   item: ItineraryItem;
   order: number;
   placeName?: string;
+  /** Past trips are a read-only scrapbook: no grip, no pencil, no bin. */
+  editable?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -48,15 +51,17 @@ export function ItineraryRow({
       }
     >
       <div className="gloss flex items-start gap-2 rounded-2xl border-2 border-silver-mid bg-white/85 p-2.5 shadow-bubble transition-[border-color] duration-150">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          aria-label={`Reorder ${item.title}`}
-          className="mt-0.5 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-xl border-2 border-transparent text-silver-deep transition-colors hover:border-silver-mid hover:text-electric active:cursor-grabbing"
-        >
-          <GripIcon className="size-5" />
-        </button>
+        {editable && (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label={`Reorder ${item.title}`}
+            className="mt-0.5 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-xl border-2 border-transparent text-silver-deep transition-colors hover:border-silver-mid hover:text-electric active:cursor-grabbing"
+          >
+            <GripIcon className="size-5" />
+          </button>
+        )}
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
@@ -91,24 +96,28 @@ export function ItineraryRow({
         </div>
 
         <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row">
-          <IconButton
-            label={`Edit ${item.title}`}
-            size="sm"
-            variant="ghost"
-            className="size-8"
-            onClick={onEdit}
-          >
-            <PencilIcon className="size-4" />
-          </IconButton>
-          <IconButton
-            label={`Delete ${item.title}`}
-            size="sm"
-            variant="ghost"
-            className="size-8 hover:text-hotpink-deep"
-            onClick={onDelete}
-          >
-            <TrashIcon className="size-4" />
-          </IconButton>
+          {editable && (
+            <>
+              <IconButton
+                label={`Edit ${item.title}`}
+                size="sm"
+                variant="ghost"
+                className="size-8"
+                onClick={onEdit}
+              >
+                <PencilIcon className="size-4" />
+              </IconButton>
+              <IconButton
+                label={`Delete ${item.title}`}
+                size="sm"
+                variant="ghost"
+                className="size-8 hover:text-hotpink-deep"
+                onClick={onDelete}
+              >
+                <TrashIcon className="size-4" />
+              </IconButton>
+            </>
+          )}
         </div>
       </div>
     </li>

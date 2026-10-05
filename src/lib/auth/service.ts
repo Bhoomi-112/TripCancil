@@ -14,6 +14,7 @@ import {
   recordUnknownAttempt,
 } from "./rate-limit";
 import type { CreateTripInput, JoinInput } from "@/lib/validation/auth";
+import { claimMemberForTraveller } from "@/lib/traveller/service";
 
 /** Safe to render: never carries a PIN, a hash, or which check failed. */
 export class AuthError extends Error {
@@ -28,7 +29,10 @@ export class AuthError extends Error {
 
 export type TripWithMember = { trip: Trip; member: Member };
 
-export async function createTrip(input: CreateTripInput): Promise<TripWithMember> {
+export async function createTrip(
+  input: CreateTripInput,
+  travellerId?: string | null,
+): Promise<TripWithMember> {
   const supabase = getSupabase();
   const pinHash = await hashPin(input.pin);
 
@@ -63,6 +67,7 @@ export async function createTrip(input: CreateTripInput): Promise<TripWithMember
       display_name: input.displayName,
       pin_hash: pinHash,
       role: "owner",
+      traveler_id: travellerId ?? null,
     })
     .select("*")
     .single();
@@ -115,7 +120,11 @@ async function loadTripFor(member: Member): Promise<TripWithMember> {
 }
 
 /** Signs in an existing member. Every rejection path costs the same time. */
-export async function loginWithPin(input: JoinInput, ip: string): Promise<TripWithMember> {
+export async function loginWithPin(
+  input: JoinInput,
+  ip: string,
+  travellerId?: string | null,
+): Promise<TripWithMember> {
   const { inviteCode, displayName, pin } = input;
 
   if (await isIpThrottled(ip)) {
@@ -162,6 +171,14 @@ export async function loginWithPin(input: JoinInput, ip: string): Promise<TripWi
   }
 
   await clearFailedAttempts(member.id);
+
+  // The PIN is proven, so this membership can join the traveller account of the
+  // device that just proved it. A row already claimed by another device is left
+  // alone: first claim wins.
+  if (travellerId && !member.traveler_id) {
+    await claimMemberForTraveller(travellerId, member.id);
+  }
+
   return loadTripFor({ ...member, failed_attempts: 0, locked_until: null });
 }
 
@@ -169,6 +186,7 @@ export async function loginWithPin(input: JoinInput, ip: string): Promise<TripWi
 export async function joinOrLogin(
   input: JoinInput,
   ip: string,
+  travellerId?: string | null,
 ): Promise<TripWithMember> {
   const trip = await findTripByInviteCode(input.inviteCode);
   if (!trip) {
@@ -176,7 +194,7 @@ export async function joinOrLogin(
   }
 
   if (await findMemberByName(trip.id, input.displayName)) {
-    return loginWithPin(input, ip);
+    return loginWithPin(input, ip, travellerId);
   }
 
   const supabase = getSupabase();
@@ -187,6 +205,7 @@ export async function joinOrLogin(
       display_name: input.displayName,
       pin_hash: await hashPin(input.pin),
       role: "member",
+      traveler_id: travellerId ?? null,
     })
     .select("*")
     .single();

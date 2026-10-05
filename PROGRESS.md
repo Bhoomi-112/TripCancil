@@ -1,6 +1,6 @@
 # PROGRESS
 
-## P0 â€” Scaffold + theme + components (done)
+## P0 — Scaffold + theme + components (done)
 - Next.js 16 App Router + TypeScript strict + Tailwind v4 (`@theme` tokens, no config file).
 - Fonts: `Press Start 2P` (display) + `Nunito` (body), self-hosted via `next/font`.
 - Palette tokens: cream / ink / electric / hot pink / lime / cyan / grape / silver / sunny,
@@ -17,18 +17,18 @@
   `/plan` `/map` `/money` `/photos` `/trip` (placeholders that demo skeleton + empty state).
 - Reduced motion respected globally; body copy is 16px+ and high contrast on cream.
 
-## P1 â€” Database schema (done)
+## P1 — Database schema (done)
 - `supabase/migrations/001_init.sql`: 13 tables, 8 enums, RLS enabled on every table with
   zero policies, `trip_id` indexes, four private buckets, explicit `revoke` of anon and
   authenticated privileges plus `revoke create on schema public`.
 - Money is `bigint` paise everywhere with `> 0` / `>= 0` checks; lat/lng, dates, vote
   values, self-settlements and non-object category caps are all constrained in the DB.
 - Circular FK handled: `trips.owner_member_id` is added after `members` exists.
-- `src/lib/db/types.ts` â€” full hand-written `Database` type with `Relationships` for every
+- `src/lib/db/types.ts` — full hand-written `Database` type with `Relationships` for every
   FK, so `select("*, members(*)")` stays typed in later prompts.
-- `src/lib/db/client.ts` â€” `import "server-only"`, cached service-role client, no anon key.
-- `src/lib/env.ts` â€” lazy accessors, so builds never need env vars at import time.
-- `scripts/seed.ts` â€” fixed UUIDs so it is re-runnable; 1 trip, 4 members (PIN 123456),
+- `src/lib/db/client.ts` — `import "server-only"`, cached service-role client, no anon key.
+- `src/lib/env.ts` — lazy accessors, so builds never need env vars at import time.
+- `scripts/seed.ts` — fixed UUIDs so it is re-runnable; 1 trip, 4 members (PIN 123456),
   6 places, 19 votes, 6 itinerary items, 12 packing items, budget, 10 expenses with exact
   splits (one equal-with-remainder, one exact split, one unequal split), 2 settlements.
   `npm run seed -- --dry-run` validates and prints without writing; the script throws if any
@@ -36,7 +36,7 @@
 
 ### How P1 was verified
 - The migration was applied to a real Postgres engine (PGlite/WASM) in a throwaway harness:
-  **50/50 checks pass** â€” all 13 tables created, RLS on with 0 policies, anon and
+  **50/50 checks pass** — all 13 tables created, RLS on with 0 policies, anon and
   authenticated have no table privileges, 4 buckets inserted as private, 20+ indexes, and
   12 negative tests (negative amount, bad vote value, self-settlement, duplicate display
   name, short invite code, reversed dates, lat out of range, non-object caps, unknown enum
@@ -67,26 +67,26 @@
 - The service-role key lives only in `.env.local` (gitignored) and in Vercel's environment
   variables. It must never be prefixed `NEXT_PUBLIC_`.
 
-## P2 â€” Auth: invite code + display name + PIN (done)
-- `src/lib/auth/codes.ts` â€” 12-character codes from `crypto.randomBytes` with rejection
+## P2 — Auth: invite code + display name + PIN (done)
+- `src/lib/auth/codes.ts` — 12-character codes from `crypto.randomBytes` with rejection
   sampling over a 32-glyph alphabet (no `I O 0 1`), so a code read aloud survives a
   forward. Input is uppercased and stripped of punctuation, so typing is forgiving.
-- `src/lib/auth/password.ts` â€” bcrypt cost 10 via `bcryptjs`. `burnPinCompare` compares
+- `src/lib/auth/password.ts` — bcrypt cost 10 via `bcryptjs`. `burnPinCompare` compares
   against a decoy hash when the member does not exist, so a missing member costs the same
   time as a wrong PIN and the two cannot be told apart by timing.
-- `src/lib/auth/session.ts` â€” HS256 JWT via `jose` in an httpOnly, `SameSite=Lax`,
+- `src/lib/auth/session.ts` — HS256 JWT via `jose` in an httpOnly, `SameSite=Lax`,
   `Secure`-in-production cookie, 14-day expiry. The token carries only `member_id` (sub)
   and `trip_id`: role, name and membership are re-read from the database on every
   request, so removing a member or changing a role takes effect immediately instead of
   living on inside a cookie for a fortnight.
-- `src/lib/auth/context.ts` â€” `requireSession` is the single gate for every read and
+- `src/lib/auth/context.ts` — `requireSession` is the single gate for every read and
   write. It re-reads the member row, rejects a token whose `trip_id` disagrees with the
   member it points at, and redirects to `/join`. `requireOwner` gates the owner tools.
-- `src/lib/auth/rate-limit.ts` â€” 5 wrong PINs locks that member for 15 minutes
+- `src/lib/auth/rate-limit.ts` — 5 wrong PINs locks that member for 15 minutes
   (`members.failed_attempts` + `locked_until`), plus an IP throttle of 20 failures per
   15 minutes from `login_attempts`, which also covers attempts that never resolved to a
   member. Resetting a PIN clears the lockout with it.
-- `src/lib/auth/service.ts` â€” `createTrip`, `joinOrLogin`, `loginWithPin`,
+- `src/lib/auth/service.ts` — `createTrip`, `joinOrLogin`, `loginWithPin`,
   `rotateInviteCode`. No cookie writes and no `next/headers` reads here: the actions pass
   the client IP in, which keeps the business logic testable outside a request.
   An unknown display name with the invite code *joins* (the code is the invitation and the
@@ -99,7 +99,7 @@
   the owner actions re-check ownership inside the action rather than trusting the UI.
 - Screens: `/join` (invite code + name + PIN, one form for both joining and signing in),
   `/new` (create a trip and mint the code), and `/trip`, which is now real: the invite
-  plate with a copy/share button, an SVG QR that scans into `/join?code=â€¦`, the crew list,
+  plate with a copy/share button, an SVG QR that scans into `/join?code=…`, the crew list,
   and the owner tools. `(app)/layout.tsx` gates the app, `(auth)/layout.tsx` bounces
   signed-in users to `/plan`. No `proxy.ts`/middleware: Next 16 deprecates it in favour of
   doing this in the layout, where the membership check can actually reach the database.
@@ -132,12 +132,12 @@
   separately from the row's own `isOwner`, because the row role and the viewer's role are
   different questions.
 
-## P3 â€” Trip home + itinerary builder (done)
+## P3 — Trip home + itinerary builder (done)
 - Days are derived from the trip dates, never stored: `src/lib/itinerary/days.ts` is pure
   and free of `server-only`, so the screen and the actions share one definition of "day 3".
   `day_index` stays 0-based in the database and 1-based on screen, with UTC maths and a
   `MAX_TRIP_DAYS` cap of 30 (longer trips would need a different day picker than chips).
-- `src/lib/itinerary/service.ts` â€” `readItinerary`, `createItem`, `updateItem`, `deleteItem`,
+- `src/lib/itinerary/service.ts` — `readItinerary`, `createItem`, `updateItem`, `deleteItem`,
   `reorderDay`, all behind `requireSession`. Every write is additionally filtered by
   `trip_id`, so a crafted id from another trip is a no-op, and a `place_id` from another
   trip is silently dropped instead of attached.
@@ -192,17 +192,107 @@
 - Any partial-column insert in this app must pass `defaultToNull: false`; `createItem`
   writes every column explicitly so it never depends on that.
 
+## Traveller accounts + my trips (done)
+- `supabase/migrations/002_travelers.sql` adds `travelers (id, created_at)` and
+  `members.traveler_id` (FK, `on delete set null`), a `members_traveler_id_idx`, a partial
+  unique index on `(trip_id, traveler_id) where traveler_id is not null`, RLS on with no
+  policies, `revoke all` from anon/authenticated, and a `notify pgrst` so the API sees it
+  immediately. Unlike `001` it is fully re-runnable (`if not exists` everywhere), because the
+  dashboard SQL editor has no rollback for a half-pasted script.
+- A `travelers` row is a person, not a login: no email, no password, nothing to guess. Its
+  only credential is possession of the signed `tc_traveller` cookie
+  (`src/lib/traveller/session.ts`, HS256, 180 days, httpOnly/Secure/SameSite=Lax, same flags
+  as `tc_session`). The cookie is not a trip session: every trip screen still needs
+  `tc_session`, and `openTripAction` re-reads the member row for that traveller before it
+  mints one, so a trip id from the form cannot borrow another trip's membership.
+- First claim wins. `claimMemberForTraveller` updates with `.is("traveler_id", null)`, so a
+  second device proving the same PIN gets `false` instead of a silent handover; a partial
+  unique index backstops the same rule in the database. `createTrip`, `joinOrLogin` and
+  `loginWithPin` all take an optional `travellerId`, so rows created before this prompt are
+  adopted the first time their owner signs in again, and a wrong PIN claims nothing.
+- `listTravellerTrips` (`src/lib/traveller/service.ts`) reads the traveller's memberships in
+  one embed plus one read per child table for the counts, so a dashboard with a dozen trips is
+  6 queries, not one per trip. It returns ids, names, dates, counts and `ended` only — no pin
+  hashes, no storage paths. The embed needs the `trips!members_trip_id_fkey(...)` hint
+  because `trips.owner_member_id` is a second relationship to `members`.
+- `/trips` lives outside the `(app)` group, since it cannot require a trip to be open. It
+  splits live trips from past ones, badges owner vs member and read-only, and shows real
+  counts. Actions: `openTripAction`, `updateTripAction`, `deleteTripAction`,
+  `forgetDeviceAction` (clears both cookies). Entry points: the splash grows a "My trips"
+  button only when a traveller cookie exists, and the trip shell has a "My trips" link above
+  the sidebar tabs / in the mobile header, without disturbing the 5-tab bottom bar.
+- Owner tools on `/trips`: rename, re-date, re-theme, and delete. `updateTripDetails`
+  refuses a non-owner, an ended trip, and shortening a trip while plan items sit on the days
+  the new dates would remove (it counts the strays first, so the message names them). The
+  service re-parses its own input with the same zod schema rather than trusting the caller,
+  so a bad payload cannot reach Postgres and surface a raw constraint error.
+- `deleteTrip` deletes storage first: it walks all four private buckets under `<trip id>/`
+  a page at a time (folders in Supabase Storage are prefixes, so it recurses) and refuses to
+  drop the trip row if any removal fails, because the cascade would orphan files — someone's
+  passport scan — with nothing left pointing at them. Deleting needs the trip name typed.
+- Ended trips are read-only everywhere, not just here: `tripHasEnded(endDate, today)` in
+  `src/lib/constants.ts` (`end_date < todayUtcISO()`, UTC because trip dates are `date`), and
+  the P3 itinerary service now calls `assertTripEditable` on all four writes.
+- Read-only is also how it *looks*: `PlanBoard` takes an `editable` flag from
+  `tripHasEnded`, so an over trip renders the same board with no Add button, no live chip, no
+  grip, no pencil and no bin, and says "read-only" in the header instead of "drag to reorder".
+
+### How this was verified
+- **37/37 checks** in a throwaway harness against the live project: schema present; first
+  claim wins and a second device is refused; the listing derives `isOwner` from
+  `owner_member_id` and leaks no pin hash; an unknown traveller sees nothing; access is
+  refused for an unlinked traveller and for a random trip id; a live trip edits; a non-owner,
+  reversed dates and a shortening-over-items edit are all refused with a readable message;
+  delete cascades members, itinerary items, expenses, photos and documents and empties all
+  four buckets (including a nested prefix); an ended trip refuses both edit and delete and
+  survives; every fixture row, traveller and test trip was removed afterwards.
+- **26/26 HTTP checks** against the dev server: the splash hides "My trips" with no cookie;
+  `/trips` 307s to `/` without a traveller cookie and with a tampered one; the empty state
+  renders with `/join` + `/new`; the seeded trip lists with its owner badge, counts and open
+  form; an ended trip gets the read-only badge and no edit/delete; no bcrypt hash appears in
+  the HTML; `/plan` still renders for the member and now links back to `/trips`; the
+  itinerary route still answers 200/401/404 correctly.
+- **10/10 auth wiring checks** on the live service: create-trip and join file the owner and
+  the joiner under their traveller; an unclaimed pre-existing member is adopted on a correct
+  PIN; a second device cannot take it over; a wrong PIN is refused and claims nothing.
+- **10/10 checks** over real HTTP against the dev server for the read-only plan board: a live
+  trip keeps Add, the live chip, the drag hint and its items; an over trip shows the
+  read-only badge, the read-only subtitle, its items, and none of the write affordances.
+- `npm run typecheck`, `npm run lint` and `npm run build` are clean.
+
+### Quirks to remember
+- The harness for that last pass failed 6 checks before it passed 10, and the app was innocent
+  every time: the helper that mints a cookie is `async`, so `cookie: \`tc_session=${cookie}\``
+  silently sent the string `[object Promise]` and every session was correctly refused. Await
+  the token before putting it in a header.
+- Embedding `trips` from `members` must name the foreign key
+  (`trips!members_trip_id_fkey(*)`). PostgREST refuses the embed outright with "more than
+  one relationship was found for 'members' and 'trips'" because of `owner_member_id`.
+- `ensureTraveller()` is called inside the create and join actions before the service call,
+  so the trip is filed under the traveller from the first insert and there is nothing to
+  claim afterwards. It writes cookies, so it cannot be called outside a request.
+- A traveller with no claimed members is possible and legitimate (a join that failed, or a
+  trip the owner already deleted); `/trips` shows the empty state rather than an error.
+- The dashboard's per-trip counts come from full row reads of the child tables, not `count`
+  queries, because Supabase has no `in` + `count` combination in one call. Fine for friend
+  groups, worth revisiting if a trip ever holds thousands of expenses.
+- Every partial-column insert still needs `defaultToNull: false` (see P1).
+
 ## Deferred
 - Nothing from P0 to P3. Still to do: transferring ownership, letting the owner leave, and
   password-recovery-by-owner is only a PIN reset (no trip-admin takeover).
 - Cross-day dragging: items move days through the edit form's day picker, not by dragging a
   row onto another chip.
 - A trip longer than 30 days cannot be planned past day 30 (see `MAX_TRIP_DAYS`).
+- A traveller account cannot be recovered: there is no email, so a device that is forgotten
+  is a new traveller. Its unclaimed memberships can still be re-claimed by entering the PIN
+  once; the ones another device already claimed stay with that device. This is a deliberate
+  trade-off, not an oversight.
 
 ## Known bugs
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## Next: P4 â€” the real Map tab (pins by location_type, day filter chips, a day's polyline,
+## Next: P4 — the real Map tab (pins by location_type, day filter chips, a day's polyline,
 Nominatim search behind a server proxy that can add the result as a candidate place or drop
 it straight into a day).

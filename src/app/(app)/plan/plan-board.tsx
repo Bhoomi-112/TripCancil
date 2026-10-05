@@ -20,7 +20,7 @@ import { idleState } from "@/lib/actions/state";
 import { ScreenHeader } from "@/components/shell/screen-header";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { LockIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 import { Modal } from "@/components/ui/modal";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
@@ -49,9 +49,11 @@ type Props = {
   tripId: string;
   days: TripDay[];
   initial: ItineraryPayload;
+  /** False once the trip is over: the same board, minus every write affordance. */
+  editable: boolean;
 };
 
-export function PlanBoard({ tripId, days, initial }: Props) {
+export function PlanBoard({ tripId, days, initial, editable }: Props) {
   const toast = useToast();
   const [dayIndex, setDayIndex] = useState(0);
   /** `undefined` closes the editor; `null` means "adding". */
@@ -102,6 +104,7 @@ export function PlanBoard({ tripId, days, initial }: Props) {
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      if (!editable) return;
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
@@ -130,7 +133,7 @@ export function PlanBoard({ tripId, days, initial }: Props) {
         await mutate();
       });
     },
-    [dayIndex, dayItems, items, mutate, places, toast],
+    [dayIndex, dayItems, editable, items, mutate, places, toast],
   );
 
   const handleDelete = useCallback(() => {
@@ -156,23 +159,34 @@ export function PlanBoard({ tripId, days, initial }: Props) {
     <>
       <ScreenHeader
         title="Plan"
-        subtitle={activeDay ? `${activeDay.chip} · drag to reorder` : "Itinerary"}
+        subtitle={
+          activeDay
+            ? `${activeDay.chip} � ${editable ? "drag to reorder" : "read-only"}`
+            : "Itinerary"
+        }
         actions={
-          <div className="flex items-center gap-2">
-            <span className="hidden items-center gap-1.5 rounded-full border-2 border-lime-deep bg-lime/80 px-2 py-1 font-display text-[9px] uppercase tracking-tight text-ink sm:inline-flex">
-              <span className="size-2 animate-blink rounded-full bg-lime-deep" />
-              live 5s
+          editable ? (
+            <div className="flex items-center gap-2">
+              <span className="hidden items-center gap-1.5 rounded-full border-2 border-lime-deep bg-lime/80 px-2 py-1 font-display text-[9px] uppercase tracking-tight text-ink sm:inline-flex">
+                <span className="size-2 animate-blink rounded-full bg-lime-deep" />
+                live 5s
+              </span>
+              <Button
+                size="sm"
+                variant="accent"
+                sparkle
+                onClick={() => setEditing(null)}
+              >
+                <PlusIcon className="size-4" />
+                Add
+              </Button>
+            </div>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-ink px-2.5 py-1 font-display text-[9px] uppercase tracking-tight text-cream">
+              <LockIcon className="size-3.5" />
+              Read-only
             </span>
-            <Button
-              size="sm"
-              variant="accent"
-              sparkle
-              onClick={() => setEditing(null)}
-            >
-              <PlusIcon className="size-4" />
-              Add
-            </Button>
-          </div>
+          )
         }
       />
 
@@ -232,12 +246,18 @@ export function PlanBoard({ tripId, days, initial }: Props) {
         <EmptyState
           illustration="cloud"
           title="Nothing on this day yet"
-          description="Add the first plan item. Drag it into place and everyone sees the change."
+          description={
+            editable
+              ? "Add the first plan item. Drag it into place and everyone sees the change."
+              : "The crew never planned anything for this day."
+          }
           action={
-            <Button variant="accent" sparkle onClick={() => setEditing(null)}>
-              <PlusIcon className="size-4" />
-              Add to {activeDay?.label ?? "this day"}
-            </Button>
+            editable && (
+              <Button variant="accent" sparkle onClick={() => setEditing(null)}>
+                <PlusIcon className="size-4" />
+                Add to {activeDay?.label ?? "this day"}
+              </Button>
+            )
           }
         />
       ) : (
@@ -257,6 +277,7 @@ export function PlanBoard({ tripId, days, initial }: Props) {
                   item={item}
                   order={index}
                   placeName={item.place_id ? placeNames.get(item.place_id) : undefined}
+                  editable={editable}
                   onEdit={() => setEditing(item)}
                   onDelete={() => setDeleting(item)}
                 />

@@ -16,6 +16,7 @@ npm run dev
 - `http://localhost:3000` — splash
 - `http://localhost:3000/design` — every UI component in every state (start here)
 - `http://localhost:3000/plan` — trip home + day-by-day itinerary (drag to reorder, live)
+- `http://localhost:3000/trips` — every trip this device has signed into, one tap to open
 - `/map` `/money` `/photos` `/trip` — the other tabs
 
 ## Live updates
@@ -24,14 +25,18 @@ with SWR, so a member sees the group's edits within about five seconds.
 
 ## Database
 ```bash
-supabase/migrations/001_init.sql   # apply via the Supabase dashboard SQL editor or CLI
-npm run seed                       # 1 trip, 4 members (PIN 123456), places, 10 expenses
-npm run seed -- --dry-run          # validate + print the seed data without writing
+supabase/migrations/001_init.sql      # paste into the Supabase dashboard SQL editor
+supabase/migrations/002_travelers.sql # same, after 001 — adds `travelers`
+npm run seed                          # 1 trip, 4 members (PIN 123456), places, 10 expenses
+npm run seed -- --dry-run             # validate + print the seed data without writing
 ```
 
-The migration creates 13 tables, 8 enums, RLS on every table with zero policies, all
-`trip_id` indexes, and four private storage buckets (`documents`, `receipts`,
-`payment-qrs`, `photos`). Seed rows use fixed UUIDs, so re-running the seed is safe.
+`001` creates 13 tables, 8 enums, RLS on every table with zero policies, all `trip_id`
+indexes, and four private storage buckets (`documents`, `receipts`, `payment-qrs`, `photos`).
+`002` adds the `travelers` table and `members.traveler_id`, which is what lets one person
+hold memberships in several trips and lets a device open them without a PIN. It is safe to
+paste twice; `001` is single-run by design. Seed rows use fixed UUIDs, so re-running the
+seed is safe.
 
 Seeded invite code: `KONKAN7X4QP2M` — member PIN `123456` for Bhoomi, Ravi, Sana, Dev.
 
@@ -43,6 +48,16 @@ Seeded invite code: `KONKAN7X4QP2M` — member PIN `123456` for Bhoomi, Ravi, Sa
 | `npm run lint` | eslint |
 | `npm run typecheck` | tsc --noEmit |
 | `npm run seed` | seed Supabase (add `-- --dry-run` to preview) |
+
+## Signing in across trips
+There is no account and no password. A trip is entered with its invite code, a display name
+and a 6-digit PIN, and that PIN is the only proof of who you are.
+
+The first time a device gets through a trip's PIN, it also mints a `travelers` row and
+remembers it in the `tc_traveller` cookie (180 days, httpOnly). That is what `/trips` lists,
+and what makes one tap open a trip without typing the PIN again. It is a convenience, not a
+new credential: opening still requires a membership row for that traveller, and "Forget this
+device" on `/trips` deletes both cookies. A trip whose last day has passed opens read-only.
 
 ## Money
 All amounts are integer paise (`amount_paise`, `share_paise`, `total_paise`). Never floats.
@@ -77,7 +92,8 @@ Vercel only runs the app; the schema and seed run separately against the same Su
 project, from your machine:
 
 ```bash
-# paste supabase/migrations/001_init.sql into the Supabase SQL editor and run it
+# paste supabase/migrations/001_init.sql into the Supabase SQL editor and run it,
+# then paste 002_travelers.sql the same way
 cp .env.example .env.local   # paste the same values you added in Vercel
 npm run seed                 # optional demo data
 ```

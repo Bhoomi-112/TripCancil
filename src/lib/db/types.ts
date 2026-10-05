@@ -63,6 +63,7 @@ export type Database = {
         Row: {
           id: string;
           trip_id: string;
+          traveler_id: string | null;
           display_name: string;
           pin_hash: string;
           role: Database["public"]["Enums"]["member_role"];
@@ -75,6 +76,7 @@ export type Database = {
         Insert: {
           id?: string;
           trip_id: string;
+          traveler_id?: string | null;
           display_name: string;
           pin_hash: string;
           role?: Database["public"]["Enums"]["member_role"];
@@ -87,6 +89,7 @@ export type Database = {
         Update: {
           id?: string;
           trip_id?: string;
+          traveler_id?: string | null;
           display_name?: string;
           pin_hash?: string;
           role?: Database["public"]["Enums"]["member_role"];
@@ -98,6 +101,13 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "members_traveler_id_fkey";
+            columns: ["traveler_id"];
+            isOneToOne: false;
+            referencedRelation: "travelers";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "members_trip_id_fkey";
             columns: ["trip_id"];
             isOneToOne: false;
@@ -105,6 +115,21 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      travelers: {
+        Row: {
+          id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       places: {
         Row: {

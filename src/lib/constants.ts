@@ -31,6 +31,20 @@ const DATE_FORMAT = new Intl.DateTimeFormat("en-IN", {
   timeZone: "UTC",
 });
 
+/** Today in UTC, matching how trip dates are stored (`date`, not `timestamptz`). */
+export function todayUtcISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * A trip is over once its last day is behind us. Trips that are running or still
+ * to come stay editable and deletable; ended trips are read-only, which is what
+ * makes "read my past trip" safe to offer without a second thought.
+ */
+export function tripHasEnded(endDate: string, today: string = todayUtcISO()): boolean {
+  return endDate < today;
+}
+
 export function formatTripDates(startDate: string, endDate: string): string {
   const start = new Date(`${startDate}T00:00:00Z`);
   const end = new Date(`${endDate}T00:00:00Z`);

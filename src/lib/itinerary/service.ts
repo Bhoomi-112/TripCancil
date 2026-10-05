@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SessionContext } from "@/lib/auth/context";
 import { getSupabase } from "@/lib/db/client";
+import { tripHasEnded } from "@/lib/constants";
 import { normaliseTime, tripDays } from "@/lib/itinerary/days";
 import type { ItineraryPayload } from "@/lib/itinerary/types";
 import type { ItineraryItemInput } from "@/lib/validation/itinerary";
@@ -11,6 +12,20 @@ export class ItineraryError extends Error {}
 
 function tripDayCount(context: SessionContext): number {
   return tripDays(context.trip.start_date, context.trip.end_date).length;
+}
+
+/**
+ * Past trips are read-only. "My trips" can open an old trip to look at it, but a
+ * trip whose last day has passed no longer takes edits, which is what makes
+ * reopening one safe without a second thought. Every write here goes through it,
+ * and later prompts must do the same.
+ */
+function assertTripEditable(context: SessionContext): void {
+  if (tripHasEnded(context.trip.end_date)) {
+    throw new ItineraryError(
+      `"${context.trip.name}" is over, so the plan is read-only now.`,
+    );
+  }
 }
 
 export async function readItinerary(tripId: string): Promise<ItineraryPayload> {
@@ -68,6 +83,7 @@ export async function createItem(
   context: SessionContext,
   input: ItineraryItemInput,
 ): Promise<void> {
+  assertTripEditable(context);
   if (input.dayIndex >= tripDayCount(context)) {
     throw new ItineraryError("That day is outside this trip.");
   }
@@ -93,6 +109,7 @@ export async function updateItem(
   itemId: string,
   input: ItineraryItemInput,
 ): Promise<void> {
+  assertTripEditable(context);
   if (input.dayIndex >= tripDayCount(context)) {
     throw new ItineraryError("That day is outside this trip.");
   }
@@ -136,6 +153,7 @@ export async function deleteItem(
   context: SessionContext,
   itemId: string,
 ): Promise<void> {
+  assertTripEditable(context);
   const supabase = getSupabase();
   const { error } = await supabase
     .from("itinerary_items")
@@ -155,6 +173,7 @@ export async function reorderDay(
   dayIndex: number,
   itemIds: string[],
 ): Promise<void> {
+  assertTripEditable(context);
   if (dayIndex >= tripDayCount(context)) {
     throw new ItineraryError("That day is outside this trip.");
   }

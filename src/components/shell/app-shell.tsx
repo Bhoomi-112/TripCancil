@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { SparkleIcon } from "@/components/ui/icons";
+import { SparkleIcon, SuitcaseIcon } from "@/components/ui/icons";
+import { buttonClass } from "@/components/ui/button";
 import { logoutAction } from "@/app/(app)/actions";
 import { isActive, navItems } from "./nav";
 
@@ -72,6 +73,16 @@ function NavLink({
   );
 }
 
+/** Lives outside the trip tabs: it is the one screen that switches trips. */
+function MyTripsLink({ className }: { className?: string }) {
+  return (
+    <Link href="/trips" className={buttonClass({ variant: "chrome", size: "sm", block: true, className })}>
+      <SuitcaseIcon className="size-4" />
+      My trips
+    </Link>
+  );
+}
+
 export function AppShell({
   children,
   displayName,
@@ -87,6 +98,7 @@ export function AppShell({
     <div className="min-h-dvh md:pl-64">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-4 border-r-2 border-silver-mid bg-white/55 p-4 backdrop-blur-sm md:flex">
         <Wordmark />
+        <MyTripsLink />
         <nav className="flex flex-col gap-1.5">
           {navItems.map((item) => (
             <NavLink
@@ -116,9 +128,12 @@ export function AppShell({
 
       <header className="sticky top-0 z-20 flex items-center justify-between border-b-2 border-silver-mid bg-cream/85 px-4 py-2.5 backdrop-blur-sm md:hidden">
         <Wordmark compact />
-        <span className="font-display text-[10px] uppercase tracking-tight text-ink-soft">
-          {navItems.find((item) => isActive(pathname, item.href))?.label ?? "Trip"}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-display text-[10px] uppercase tracking-tight text-ink-soft">
+            {navItems.find((item) => isActive(pathname, item.href))?.label ?? "Trip"}
+          </span>
+          <MyTripsLink className="h-8 px-2.5 text-[9px]" />
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-5xl px-4 pt-4 pb-28 md:px-8 md:pt-8 md:pb-16">
