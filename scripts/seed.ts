@@ -189,7 +189,10 @@ async function main() {
       category: "stay",
       location_type: "beach",
       proposed_by: MEMBER_IDS.Ravi,
-      status: "proposed",
+      // Day 1's first stop is this pin, so it is in the plan and not on the
+      // ballot. `status` is what the Plan tab reads as "already planned" and
+      // what the ballot sorts on, so the two have to agree.
+      status: "locked",
     },
     {
       id: PLACE_IDS.karli,

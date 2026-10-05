@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SessionContext } from "@/lib/auth/context";
-import { isOwner } from "@/lib/auth/context";
+import { isOwner } from "@/lib/auth/roles";
 import { getSupabase } from "@/lib/db/client";
 import { tripHasEnded } from "@/lib/constants";
 import { createItem } from "@/lib/itinerary/service";

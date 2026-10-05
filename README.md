@@ -25,7 +25,8 @@ npm run dev
 There are no websockets. Authenticated screens poll with SWR every 5s, so a member sees the
 group's edits within about five seconds:
 - `GET /api/trips/[id]/itinerary` — plan board items and the trip's places
-- `GET /api/trips/[id]/places` — map pins, each pin's days, and the visit order per day
+- `GET /api/trips/[id]/places` — map pins, each pin's days, the visit order per day, the
+  members, and every pin's votes (up/down tally and who cast them)
 - `GET /api/trips/[id]/money` — members, live expenses, every share, and settlements
 
 Both return 401 signed out and 404 if the id in the path is not the session's trip.
@@ -42,11 +43,42 @@ A hit can be proposed as a candidate (`places.status = 'proposed'`) or dropped s
 day, which creates the pin as `locked` plus the itinerary item. Re-searching a spot already on
 the trip reuses that pin instead of adding a second one.
 
+## Voting on candidates
+Every pin that is not in the plan is a live question, and the ballot is the window under the map
+on `/map`. It lists the candidates ranked by score, with the counts and the voters' faces beside
+them, so the group can see what everyone thinks instead of guessing from who spoke last.
+
+Votes are not a second request. `readMapData` embeds `place_votes(member_id, value)` on the same
+`places` select the map already polls, so the tally the ballot draws is part of the map payload
+and arrives within the same 5 seconds as everything else. `place_votes` has no `trip_id` of its
+own, which is exactly why it hangs off the pin: `places -> place_votes` needs no disambiguation,
+and a vote can never be counted for the wrong trip.
+
+| action | who | what happens |
+| --- | --- | --- |
+| In / Out on a ballot row or in a pin pop-up | any member | one vote per person per pin; the same button twice retracts it, a different one replaces it |
+| Lock in | owner only | pick a day, the winner becomes a stop on it and leaves the ballot |
+
+The member a vote is written for always comes from the session cookie, never from the browser, so
+a vote only exists in the name of the person whose PIN passed. Voting the same way again deletes
+the row rather than storing a second one. Ranking is score (ups minus downs), then ups, then name —
+the ups tiebreak keeps two enthusiastic supporters ahead of two-plus-one-who-dislikes-it, and the
+name tiebreak is what stops a tie from reshuffling every 5 seconds.
+
+The owner's lock-in delegates to `addPlaceToDay`, so the day bounds, the position in the day, the
+"this pin belongs to this trip" check and the read-only gate on an ended trip all stay in the one
+place they already lived. An ended trip shows a closed ballot and refuses votes server-side.
+
+`/design` has a **Votes** section that is a working ballot — switch the viewer between the four
+members and between owner and plain member, and the row changes. `Ballot` and `BallotRow` take
+optional `onVote` / `onLockIn` handlers: inside the app they are absent and the server actions run;
+on `/design` they are supplied and nothing touches the database.
+
 ## Database
 ```bash
 supabase/migrations/001_init.sql      # paste into the Supabase dashboard SQL editor
 supabase/migrations/002_travelers.sql # same, after 001 — adds `travelers`
-npm run seed                          # 1 trip, 4 members (PIN 123456), places, 10 expenses
+npm run seed                          # 1 trip, 4 members (PIN 123456), 6 places, 19 votes, 10 expenses
 npm run seed -- --dry-run             # validate + print the seed data without writing
 ```
 
@@ -67,6 +99,8 @@ Seeded invite code: `KONKAN7X4QP2M` — member PIN `123456` for Bhoomi, Ravi, Sa
 | `npm run lint` | eslint |
 | `npm run typecheck` | tsc --noEmit |
 | `npm run seed` | seed Supabase (add `-- --dry-run` to preview) |
+| `NODE_OPTIONS=--conditions=react-server npx tsx scripts/verify-money.mts` | 89 checks against the live database and a running dev server; deletes its own fixtures |
+| `NODE_OPTIONS=--conditions=react-server npx tsx scripts/verify-votes.mts` | 89 checks for voting: tallies, sort tiebreaks, retraction, lock-in, cross-trip and ended-trip guards, and the map page over HTTP |
 
 ## Signing in across trips
 There is no account and no password. A trip is entered with its invite code, a display name
@@ -133,9 +167,15 @@ Supabase is reached over HTTPS (PostgREST + Storage), so no IP allowlist or priv
 config is required from Vercel.
 
 ### 4. Verify
-Open the deployment URL, then `/design` for the component gallery and `/plan` for the shell.
-From P2 onwards, test the full loop: create a trip in one browser, join from a second
-browser (incognito) using the invite code, and confirm both see each other's edits.
+Open the deployment URL, then `/design` for the component gallery (including the working Votes
+ballot) and `/plan` for the shell. From P2 onwards, test the full loop: create a trip in one
+browser, join from a second browser (incognito) using the invite code, and confirm both see each
+other's edits — and in `/map` that both can vote on the same pin and see each other's vote within
+five seconds.
+
+To check the data layer without clicking through it, run `scripts/verify-money.mts` and
+`scripts/verify-votes.mts` (see Scripts). Each creates its own throwaway trips, asserts against the
+live database and a running `npm run dev`, then deletes what it made.
 
 ### CLI alternative
 The Vercel CLI is not installed in this repo. If you prefer it:

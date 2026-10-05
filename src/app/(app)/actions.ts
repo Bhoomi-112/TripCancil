@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { failed, runAction, type ActionState } from "@/lib/actions/state";
-import { isOwner, requireSession } from "@/lib/auth/context";
+import { requireSession } from "@/lib/auth/context";
+import { isOwner } from "@/lib/auth/roles";
 import { hashPin } from "@/lib/auth/password";
 import { rotateInviteCode } from "@/lib/auth/service";
 import { clearSessionCookie } from "@/lib/auth/session";

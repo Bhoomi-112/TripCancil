@@ -1,5 +1,6 @@
 import { ScreenHeader } from "@/components/shell/screen-header";
 import { requireSession } from "@/lib/auth/context";
+import { isOwner } from "@/lib/auth/roles";
 import { tripHasEnded } from "@/lib/constants";
 import { tripDays } from "@/lib/itinerary/days";
 import { readMapData } from "@/lib/maps/service";
@@ -38,7 +39,7 @@ export default async function MapPage() {
         initial={payload}
         editable={!ended}
         viewerId={member.id}
-        isOwner={member.role === "owner" && trip.owner_member_id === member.id}
+        isOwner={isOwner({ member, trip })}
       />
       <p className="mt-2 text-center text-[11px] font-semibold text-ink-soft">
         {payload.places.length} pins · {stops} planned stops · {candidates} on the

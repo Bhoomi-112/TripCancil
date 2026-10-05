@@ -388,6 +388,102 @@
 - `settle-form` keeps both ends in state. A plain `defaultValue` on the recipient select left the
   preview showing someone who was no longer the recipient.
 
+## P5b: group voting on candidate places (done)
+
+- A candidate pin is now something the group decides rather than something one
+  person drops on the map. The ballot is a window under the map: every pin that is
+  not in the plan, ranked by score, with the counts and who cast them.
+- **Votes ride along in the places payload.** `readMapData` embeds
+  `place_votes(member_id, value)` on the `places` select, so the tally the ballot
+  draws is the same object the map already polls every 5s - no second request, no
+  second poll, and the first paint is identical to every refresh because both go
+  through `buildMapPayload`.
+- The tally keeps **every** vote, not just the score, because "who voted what" is
+  the point of a group ballot: `votersInNameOrder` shows ups first then by name,
+  each avatar ringed lime or hot pink. A value outside (-1, 1) cannot be written
+  through this app - the column is a `check` - but `tallyVotes` drops it anyway
+  rather than counting it towards a score.
+- **One member, one vote per place, changeable and retractable.** `voteOnPlace`
+  takes the member from the session and never from the client, so a vote is only
+  ever in the name of the person whose PIN it was. Pressing the button you already
+  pressed deletes the row, which makes "I meant the other one" a second tap.
+  Tapping is optimistic: the button lights before the server answers, and the
+  override is dropped as soon as the poll brings the truth back.
+- Sorting is **score, then ups, then name**. The ups tiebreak matters - three
+  people loving a place beats two loving it and one grumbling - and the name
+  tiebreak is what stops a tie from jittering every 5s.
+- The owner's call is `lockInPlace`: pick a day, and the winner becomes a stop on
+  it and stops being a candidate. It is owner-only (checked in the service, not
+  the UI) and delegates to `addPlaceToDay`, so the day bounds, the position, the
+  place-belongs-to-this-trip check and the ended-trip gate all stay in the one
+  place they already lived.
+- Pins vote from the map too: the pop-up carries its own In / Out buttons, so you
+  vote where you are already looking instead of hunting down the list.
+- Ended trips are read-only like everywhere else: the footer says the ballot is
+  closed, and both `voteOnPlace` and `lockInPlace` refuse through
+  `assertTripEditable`.
+- `/design` has a **Votes** section that is a working ballot: switch the viewer
+  between the four members and between owner and plain member and the row changes
+  accordingly. `Ballot` and `BallotRow` take optional `onVote` / `onLockIn`
+  handlers, which is how a page with no session and no database renders the same
+  components the map runs.
+- Seed fix: "Alibaug beach resort" was seeded as a candidate while Day 1's first
+  itinerary item pointed at it. `status` is what the Plan tab reads as "already
+  planned" and what the ballot sorts on, so the two disagreed and the owner could
+  have "locked in" a pin that was already a stop. It is now `locked`.
+
+### How this was verified
+- **89/89 live checks** in a throwaway harness running the real service against
+  the live Supabase project: the pure tally (counts, score, stable member-id
+  order, out-of-range values dropped) and all three sort tiebreaks; then three
+  members voting on one pin, each row in the name of the person who cast it, the
+  payload tally and score matching, changing a vote replacing it, a repeat tap
+  retracting it; a place id from another trip refused, a zero refused, an over
+  trip refusing votes, an already-locked pin refusing votes; a plain member
+  refused the lock-in with nothing added to the plan, the owner allowed, the
+  stop landing on the chosen day at position 0 with the pin's title, re-locking
+  refused, a day outside the trip refused, an existing stop on that day refused;
+  a pin proposed through the map's own search flow taking a vote; two trips at
+  once with neither seeing the other's pins or votes; the seeded map reading 6
+  pins, 4 members, 19 votes, the resort locked, and the viewpoint ranked above
+  the caves. Then over real HTTP against the dev server: the ballot on the page,
+  the leader named, the vote counts in the footer, the owner seeing the day picker
+  and a plain member seeing none, an over trip badged closed, the seeded ballot
+  rendering with 19 votes cast, and the polling route answering 200 / 401 / 404
+  and leaking no pin hash or invite code. Every fixture trip was deleted and the
+  seeded ballot re-counted at nineteen.
+- `scripts/verify-money.mts` was re-run afterwards: **89/89 still pass**, so
+  moving `isOwner` out of `context.ts` and the payload change broke nothing.
+- `npm run typecheck`, `npm run lint` and `npm run build` are clean.
+
+### Quirks to remember
+- The harness failed 7 checks on its first run and the app was innocent every
+  time: five were wrong expectations of mine (a tiebreak I had written backwards,
+  two score counts left over from an earlier step in the sequence, a cross-trip
+  check pointed at the wrong trip) and two came from React splitting adjacent
+  text nodes with `<!-- -->` in server-rendered HTML, so `"19 votes cast"` is not
+  a substring of the response. `text(html)` in the harness strips those now.
+- `isOwner` moved to `src/lib/auth/roles.ts` and is re-exported from `context.ts`.
+  It is a pure two-field check, and importing it from `context.ts` dragged
+  `next/navigation` into every service that wanted it, which breaks any harness
+  that imports the service outside a request. Keep value imports of
+  `context.ts` out of `src/lib/*/service.ts`; `import type` from it is fine
+  because it erases.
+- `place_votes` has no `trip_id`, so embedding it on the `places` select is the
+  only way to get votes without a second query filtered by place ids. It works
+  because `places -> place_votes` is unambiguous; the two-way relationship that
+  needs naming is `members -> trips` (see `owner_member_id`).
+- `upsert` on `place_votes` passes `defaultToNull: false` even for a single row:
+  PostgREST builds its column list from the keys it is given, and `created_at`
+  only keeps its default if the key is left out entirely.
+- `Ballot` and `BallotRow` take optional `onVote` / `onLockIn` props. Inside the
+  app they are absent and the server actions run; on `/design` they are supplied
+  and nothing touches the database. That is the whole reason the components are
+  not hard-wired to their actions.
+- The footer says "N of M weighed in" counting only candidates, but "votes cast"
+  counts every vote on the trip, locked pins included - a settled decision still
+  happened.
+
 ## Deferred
 - Place votes: `place_votes` is still empty and nothing counts them, so a candidate has no
   score yet.

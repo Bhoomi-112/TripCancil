@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { Database } from "@/lib/db/types";
 import { getSupabase } from "@/lib/db/client";
 import { getSession } from "./session";
+import { isOwner } from "./roles";
 
 export type Member = Database["public"]["Tables"]["members"]["Row"];
 export type Trip = Database["public"]["Tables"]["trips"]["Row"];
@@ -69,10 +70,6 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     .maybeSingle();
 
   return trip ? { member, trip } : null;
-}
-
-export function isOwner(context: SessionContext): boolean {
-  return context.member.role === "owner" && context.trip.owner_member_id === context.member.id;
 }
 
 /** Owner-only actions return a typed failure instead of throwing at the UI. */
