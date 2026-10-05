@@ -34,6 +34,17 @@ export const placeToDaySchema = z.object({
 });
 export type PlaceToDayInput = z.infer<typeof placeToDaySchema>;
 
+/**
+ * A vote is a plain number on the way in, because the buttons post `1` and `-1`
+ * as strings. Anything else - 0, 2, "yes" - is refused rather than coerced into
+ * something the tally would then have to guess about.
+ */
+export const voteSchema = z.object({
+  placeId: z.string().uuid(),
+  value: z.union([z.literal(1), z.literal(-1)]),
+});
+export type VoteInput = z.infer<typeof voteSchema>;
+
 export const searchResultToDaySchema = z.object({
   name: searchName,
   ...coordinates,

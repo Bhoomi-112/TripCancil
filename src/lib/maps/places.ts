@@ -14,10 +14,36 @@ export type MapPlaceRow = Pick<
   "id" | "name" | "lat" | "lng" | "category" | "location_type" | "status"
 >;
 
+/** One row of `place_votes` as the embedded select hands it over. */
+export type VoteRow = { member_id: string; value: number };
+
+/**
+ * A place as the polling select returns it: the flat columns plus the votes
+ * PostgREST embeds for us, so the ballot needs no second query.
+ */
+export type MapPlaceSelect = MapPlaceRow & {
+  proposed_by: string | null;
+  place_votes: VoteRow[];
+};
+
 export type MapItemRow = Pick<
   Tables<"itinerary_items">,
   "id" | "day_index" | "position" | "created_at" | "place_id" | "title"
 >;
+
+/** Just enough of a member to say who did what; never a pin hash. */
+export type MapMember = { id: string; displayName: string };
+
+export type VoteValue = 1 | -1;
+
+/** One place's ballot: the counts, and every vote so the UI can show who voted. */
+export type PlaceVotes = {
+  up: number;
+  down: number;
+  /** up - down. The number the ballot sorts on. */
+  score: number;
+  byMember: { memberId: string; value: VoteValue }[];
+};
 
 export type MapPlace = {
   id: string;
@@ -29,6 +55,9 @@ export type MapPlace = {
   status: Tables<"places">["status"];
   /** 0-based days this place is pinned into, ascending. */
   days: number[];
+  /** Who put the pin on the map. */
+  proposedBy: string | null;
+  votes: PlaceVotes;
 };
 
 /** The visit order for one day, so the map can draw a line through it. */
@@ -40,16 +69,45 @@ export type MapRoute = {
 export type MapPayload = {
   places: MapPlace[];
   routes: MapRoute[];
+  members: MapMember[];
 };
 
 type LatLng = { lat: number; lng: number };
 
 const EARTH_RADIUS_KM = 6371;
 
-export function buildMapPayload(
-  places: MapPlaceRow[],
-  items: MapItemRow[],
-): MapPayload {
+/**
+ * Counts one place's votes and keeps every one of them, because "who voted what"
+ * is the point of a group ballot. Values outside (-1, 1) cannot happen through
+ * this app - the column is a check - so anything else is dropped rather than
+ * counted towards a score.
+ */
+export function tallyVotes(rows: VoteRow[]): PlaceVotes {
+  const byMember: { memberId: string; value: VoteValue }[] = [];
+  let up = 0;
+  let down = 0;
+
+  for (const row of rows) {
+    if (row.value !== 1 && row.value !== -1) continue;
+    const value: VoteValue = row.value;
+    byMember.push({ memberId: row.member_id, value });
+    if (value === 1) up += 1;
+    else down += 1;
+  }
+
+  // Member id order keeps the payload byte-identical between polls; the ballot
+  // re-sorts by display name, which is what a person reads.
+  byMember.sort((a, b) => a.memberId.localeCompare(b.memberId));
+
+  return { up, down, score: up - down, byMember };
+}
+
+export function buildMapPayload(input: {
+  places: MapPlaceSelect[];
+  items: MapItemRow[];
+  members: { id: string; display_name: string }[];
+}): MapPayload {
+  const { places, items } = input;
   const known = new Set(places.map((place) => place.id));
   const daysByPlace = new Map<string, Set<number>>();
   const routes: MapRoute[] = [];
@@ -95,6 +153,8 @@ export function buildMapPayload(
       category: place.category,
       locationType: place.location_type,
       status: place.status,
+      proposedBy: place.proposed_by ?? null,
+      votes: tallyVotes(place.place_votes ?? []),
       days: [...(daysByPlace.get(place.id) ?? new Set<number>())].sort(
         (a, b) => a - b,
       ),
@@ -103,7 +163,64 @@ export function buildMapPayload(
     // unordered select would reshuffle pins every 5s.
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  return { places: payloadPlaces, routes };
+  return {
+    places: payloadPlaces,
+    routes,
+    // Name order, not creation order, because these are labels on a ballot and
+    // an avatar list that reorders every 5s reads as a glitch.
+    members: [...input.members]
+      .map((member) => ({ id: member.id, displayName: member.display_name }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+  };
+}
+
+/**
+ * Ballot order: best score first, then the most ups (a place three people love
+ * beats a place two people love and one grumbles at), then name so a tie never
+ * jitters between polls.
+ */
+export function sortBallot(places: MapPlace[]): MapPlace[] {
+  return [...places].sort((a, b) => {
+    if (a.votes.score !== b.votes.score) return b.votes.score - a.votes.score;
+    if (a.votes.up !== b.votes.up) return b.votes.up - a.votes.up;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+export function nameOf(members: MapMember[], memberId: string | null): string | null {
+  if (!memberId) return null;
+  return members.find((member) => member.id === memberId)?.displayName ?? null;
+}
+
+/** The viewer's own vote, or null when they have not weighed in yet. */
+export function myVoteFor(place: MapPlace, memberId: string): VoteValue | null {
+  return (
+    place.votes.byMember.find((vote) => vote.memberId === memberId)?.value ?? null
+  );
+}
+
+/** Everyone who voted, in the order a person reads: name A to Z, downs last. */
+export function votersInNameOrder(
+  place: MapPlace,
+  members: MapMember[],
+): { memberId: string; name: string; value: VoteValue }[] {
+  return place.votes.byMember
+    .map((vote) => ({
+      memberId: vote.memberId,
+      name: nameOf(members, vote.memberId) ?? "Someone",
+      value: vote.value,
+    }))
+    .sort(
+      (a, b) =>
+        a.value !== b.value
+          ? b.value - a.value
+          : a.name.localeCompare(b.name),
+    );
+}
+
+/** Every vote cast on this trip, for the "19 votes cast" footer line. */
+export function totalVotesCast(payload: MapPayload): number {
+  return payload.places.reduce((total, place) => total + place.votes.byMember.length, 0);
 }
 
 /**
