@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EXPENSE_CATEGORIES, SETTLEMENT_STATUSES } from "@/lib/money/categories";
+import { MAX_UPI_ID_LENGTH } from "@/lib/money/payment-qr-limits";
 
 export { CATEGORY_LABELS, EXPENSE_CATEGORIES } from "@/lib/money/categories";
 
@@ -40,6 +41,12 @@ export const settlementSchema = z.object({
     .trim()
     .min(1, "How much is being paid?")
     .max(20, "That amount is too long"),
+  /**
+   * `promise` logs a pending settlement; `paid` is the payer saying the money
+   * already left their account. The service refuses a `paid` that does not come
+   * from the payer, so the field is a claim, never a privilege.
+   */
+  intent: z.enum(["promise", "paid"]).default("promise"),
 });
 export type SettlementFormInput = z.infer<typeof settlementSchema>;
 
@@ -61,3 +68,17 @@ export type BudgetFormInput = z.infer<typeof budgetSchema>;
 export function capFieldName(category: (typeof EXPENSE_CATEGORIES)[number]): string {
   return `cap-${category}`;
 }
+
+/**
+ * The UPI handle a member types next to their stored QR. Blank clears it; the
+ * length bounds match the database check, so a rejected value never gets far
+ * enough to look like a database error.
+ */
+export const upiIdSchema = z.object({
+  upiId: z
+    .string()
+    .trim()
+    .max(MAX_UPI_ID_LENGTH, "That UPI ID is too long")
+    .optional(),
+});
+export type UpiIdFormInput = z.infer<typeof upiIdSchema>;

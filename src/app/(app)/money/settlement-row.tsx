@@ -68,11 +68,20 @@ export function SettlementRow({
     settlement.from_member === viewerId || settlement.to_member === viewerId;
   const mayAct = editable && (involved || isOwner);
 
+  // The two taps the group actually argues about, in their own words: the
+  // person who paid says "I paid", the person who was paid says "Confirm
+  // received". Anyone else allowed to move it (the owner) gets the neutral verb.
   const next: { status: SettlementStatus; label: string } | null =
     settlement.status === "pending"
-      ? { status: "paid", label: "Mark paid" }
+      ? {
+          status: "paid",
+          label: settlement.from_member === viewerId ? "I paid" : "Mark paid",
+        }
       : settlement.status === "paid"
-        ? { status: "confirmed", label: "Confirm settled" }
+        ? {
+            status: "confirmed",
+            label: settlement.to_member === viewerId ? "Confirm received" : "Confirm settled",
+          }
         : null;
 
   return (

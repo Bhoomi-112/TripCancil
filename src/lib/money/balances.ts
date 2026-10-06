@@ -26,6 +26,10 @@ export type MoneyMember = {
   id: string;
   displayName: string;
   role: Enums<"member_role">;
+  /** The member's own UPI handle, if they saved one. Never a generated code. */
+  upiId: string | null;
+  /** Fresh signed URL to their stored payment QR, or null when they have none. */
+  qrUrl: string | null;
 };
 
 /**

@@ -645,6 +645,69 @@
   `receipt_path`) in `design/money-section.tsx`, `verify-money.mts` and
   `verify-budget.mts`.
 
+## P9: balances, settle-up and stored payment QRs (done)
+
+- **Two new fields on the wire.** `MoneyMember` grew `upiId` and `qrUrl`;
+  `readMoney` selects `payment_qr_path, upi_id`, mints a **300s signed URL** per
+  QR on every 5s poll (`PAYMENT_QR_URL_TTL_SECONDS`, same TTL as receipts) and
+  maps an explicit shape — the storage path never leaves the server, only the
+  link that embeds it.
+- **`src/lib/money/payment-qr.ts`** — `setPaymentQr` / `removePaymentQr` /
+  `setUpiId`, every one behind `assertTripEditable` (a finished trip is
+  read-only, like the rest of the ledger) and always writing to
+  `<trip>/<member>/…` in the private `payment-qrs` bucket, so one person's
+  upload can never land in another's folder. Limits live in the client-safe
+  `payment-qr-limits.ts`: 5 MB, PNG/JPG/WebP (the same allow-list the bucket
+  enforces). A replacement deletes the old file first, removal clears storage
+  before the row, and the UPI text is trimmed to the database's 3–80 characters
+  or blanked to null.
+- **`POST` / `DELETE /api/trips/[tripId]/payment-qr`** — multipart upload for
+  the **caller's own row only**: membership comes from the session cookie and
+  the service never takes a member id, so there is nothing to point at someone
+  else.
+- **Settlement lifecycle.** `createSettlement` takes `initialStatus:
+  "pending" | "paid"`: `paid` may only be started by the payer (or the owner
+  logging for them) — never by the person being paid — and `confirmed` is not a
+  starting status at all (`intent` in `settlementSchema` is `promise | paid`).
+  A settlement must be a positive whole number of paise. Status is a state, not
+  an event, so paid → confirmed moves the balance exactly once, which the unit
+  tests now pin down.
+- **UI.** "Who owes whom" grew a **My QR** window action →
+  `payment-qr-modal.tsx` (preview, replace, remove, and a UPI-id box posted by
+  `setUpiIdAction`; the app only ever stores a code the member already has).
+  Every transfer **you** owe shows the creditor's QR as a tappable thumbnail
+  and a **Pay** button → `pay-modal.tsx`: the QR big enough to scan off the
+  phone in front of you (tap for full screen), a copy-UPI-ID button, a friendly
+  nudge when the creditor has stored nothing yet, and one **I paid** tap that
+  logs the payment as already sent. Everybody else keeps the old promise form
+  as a quieter **Log promise**. Settlement rows now speak in the viewer's voice:
+  **I paid** for the payer, **Confirm received** for the creditor.
+- **`scripts/test-balances.mts`** — 18 pure cases, no server: three friends,
+  an all-square group (zero balances), a zero-balance member inside a busy
+  group who must never appear in a payment, one debtor/one creditor, six uneven
+  members (debt conserved, every net cleared, draw is stable), plus the
+  promise/paid/confirmed and soft-delete rules the ledger leans on.
+
+### How P9 was verified
+- **63/63 live checks** in `scripts/verify-p9.mts` against live Supabase + the
+  dev server: UPI id round-trips trimmed, blanks clear, 2- and 81-character
+  values refused, ended trips read-only; QR file gates (empty/PDF/6 MB), path
+  namespaced to `<trip>/<member>`, signed URL fetches the real bytes, a
+  replacement leaves one file, removal empties the folder and is idempotent;
+  "the person being paid cannot claim it was paid", zero-amount refused, a
+  promise moves nothing, "I paid" moves it, a stranger cannot confirm, the
+  creditor's confirm does not double-count; multipart upload / wrong-trip 404 /
+  no-session 401 / delete; the money page shows My QR, the Pay button and the
+  creditor's signed QR link while leaking neither `payment_qr_path` nor a PIN
+  hash; the polling payload carries `qrUrl`/`upiId` only.
+- Regression sweep: `verify-money` 89/89, `verify-budget` 41/41, `verify-p8`
+  43/43, `verify-p6` 87/87, `verify-votes` 89/89, `test-balances` 18/18;
+  `typecheck`, `lint` and `build` clean (the `/api/trips/[tripId]/payment-qr`
+  route now shows in the route list).
+- Fixtures updated for the two new member fields in `design/money-section.tsx`
+  (which also previews the new Pay / Log promise transfer rows),
+  `verify-money.mts` and `verify-budget.mts`.
+
 ## Deferred
 - Deleting or moving a pin from the map. Adding is covered; removal waits on a prompt that
   says what should happen to stops already pointing at it.
@@ -659,14 +722,17 @@
   is a new traveller. Its unclaimed memberships can still be re-claimed by entering the PIN
   once; the ones another device already claimed stay with that device. This is a deliberate
   trade-off, not an oversight.
+- Payment QRs: one image per member, stored not generated. Several codes (UPI plus bank
+  plus card) would need a list column and a picker on the settle-up screen.
+- A settlement cannot be deleted, only moved back to `pending`, so a fat-fingered "I paid"
+  is undone by the creditor reopening it rather than by the payer erasing the row.
 
 ## Known bugs
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## Next: P9
-- The next prompt is **P9: payment QR storage**. The plan (from P0's pack order):
-  `payment-qrs` bucket belongs to the money story, so a QR image (UPI, NEQR,
-  account scan) gets uploaded like a receipt, shown alongside the transfer it
-  pays, and covered by the same signed-URL rule. The pack order then runs the
-  photobooth and the public recap page.
+## Next: P10
+- The next prompt is **P10: photobooth engine (upload-based)**. Photos tab, client-side
+  only: pick 1–4 photos, crop/rotate, choose a layout, add text, export a PNG through the
+  canvas API with one placeholder theme, and drag/scale/rotate stickers with touch support.
+  P11 then dresses the same engine in the location themes.

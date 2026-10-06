@@ -24,6 +24,8 @@ import { formatPaise, formatPaiseShort } from "@/lib/money/paise";
 import { BudgetWindow } from "./budget-window";
 import { ExpenseForm } from "./expense-form";
 import { ExpenseRow } from "./expense-row";
+import { PayModal } from "./pay-modal";
+import { PaymentQrModal } from "./payment-qr-modal";
 import { SettleForm } from "./settle-form";
 import { SettlementRow } from "./settlement-row";
 
@@ -75,6 +77,8 @@ export function MoneyBoard({
     shares: Map<string, number>;
   } | null>(null);
   const [settling, setSettling] = useState<Transfer | null>(null);
+  const [paying, setPaying] = useState<Transfer | null>(null);
+  const [myQr, setMyQr] = useState(false);
   const [tab, setTab] = useState("all");
 
   const startEdit = useCallback(
@@ -175,7 +179,17 @@ export function MoneyBoard({
 
       <BudgetWindow payload={payload} editable={editable} />
 
-      <Window title="Who owes whom" icon={<span aria-hidden="true">⚖️</span>}>
+      <Window
+        title="Who owes whom"
+        icon={<span aria-hidden="true">⚖️</span>}
+        actions={
+          editable ? (
+            <Button size="sm" variant="chrome" onClick={() => setMyQr(true)}>
+              My QR
+            </Button>
+          ) : undefined
+        }
+      >
         <div className="flex flex-col gap-2">
           {balances.map((balance) => {
             const name = balance.memberId === viewerId ? "You" : (names.get(balance.memberId) ?? "?");
@@ -213,10 +227,14 @@ export function MoneyBoard({
             {transfers.map((transfer) => {
               const from = names.get(transfer.fromMemberId) ?? "Someone";
               const to = names.get(transfer.toMemberId) ?? "Someone";
+              const creditor = payload.members.find(
+                (member) => member.id === transfer.toMemberId,
+              );
+              const iOwe = transfer.fromMemberId === viewerId;
               return (
                 <div
                   key={`${transfer.fromMemberId}-${transfer.toMemberId}`}
-                  className="flex items-center gap-2"
+                  className="flex flex-wrap items-center gap-2"
                 >
                   <span className="text-sm font-bold text-ink">
                     {transfer.fromMemberId === viewerId ? "You" : from}
@@ -228,13 +246,37 @@ export function MoneyBoard({
                   <span className="ml-auto font-display text-xs text-electric">
                     {formatPaise(transfer.amountPaise)}
                   </span>
-                  {editable ? (
+                  {iOwe && creditor?.qrUrl ? (
+                    <button
+                      type="button"
+                      title={`Show ${to}'s payment QR`}
+                      onClick={() => setPaying(transfer)}
+                      className="size-7 shrink-0 overflow-hidden rounded-lg border-2 border-silver-deep bg-white shadow-sticker transition-transform duration-150 hover:scale-105"
+                    >
+                      {/* Signed URL into the private payment-qrs bucket. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={creditor.qrUrl}
+                        alt={`${to}'s payment QR`}
+                        className="size-full object-contain"
+                      />
+                    </button>
+                  ) : null}
+                  {editable && iOwe ? (
+                    <button
+                      type="button"
+                      onClick={() => setPaying(transfer)}
+                      className={buttonClass({ variant: "pop", size: "sm" })}
+                    >
+                      Pay
+                    </button>
+                  ) : editable ? (
                     <button
                       type="button"
                       onClick={() => setSettling(transfer)}
-                      className={buttonClass({ variant: "pop", size: "sm" })}
+                      className={buttonClass({ variant: "ghost", size: "sm" })}
                     >
-                      Settle
+                      Log promise
                     </button>
                   ) : null}
                 </div>
@@ -368,6 +410,26 @@ export function MoneyBoard({
           toMemberId={settling.toMemberId}
           amountPaise={settling.amountPaise}
           onClose={() => setSettling(null)}
+        />
+      ) : null}
+
+      {paying ? (
+        <PayModal
+          viewerId={viewerId}
+          fromMemberId={paying.fromMemberId}
+          toMemberId={paying.toMemberId}
+          amountPaise={paying.amountPaise}
+          members={payload.members}
+          onClose={() => setPaying(null)}
+        />
+      ) : null}
+
+      {myQr ? (
+        <PaymentQrModal
+          tripId={tripId}
+          qrUrl={payload.members.find((member) => member.id === viewerId)?.qrUrl ?? null}
+          upiId={payload.members.find((member) => member.id === viewerId)?.upiId ?? null}
+          onClose={() => setMyQr(false)}
         />
       ) : null}
     </div>

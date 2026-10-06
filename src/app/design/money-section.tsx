@@ -19,13 +19,17 @@ import { AmountInput } from "@/app/(app)/money/amount-input";
 import { SettlementRow } from "@/app/(app)/money/settlement-row";
 
 const MEMBERS: MoneyMember[] = [
-  { id: "m1", displayName: "Bhoomi", role: "owner" },
-  { id: "m2", displayName: "Ravi", role: "member" },
-  { id: "m3", displayName: "Sana", role: "member" },
-  { id: "m4", displayName: "Dev", role: "member" },
+  { id: "m1", displayName: "Bhoomi", role: "owner", upiId: "bhoomi@okaxis", qrUrl: null },
+  { id: "m2", displayName: "Ravi", role: "member", upiId: "9876543210@ybl", qrUrl: null },
+  { id: "m3", displayName: "Sana", role: "member", upiId: null, qrUrl: null },
+  { id: "m4", displayName: "Dev", role: "member", upiId: null, qrUrl: null },
 ];
 
 const NAMES = new Map(MEMBERS.map((member) => [member.id, member.displayName]));
+
+/** A stand-in QR so the settle-up row can be reviewed without a stored one. */
+const MOCK_QR =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Crect width='10' height='10' fill='white'/%3E%3Crect x='1' y='1' width='3' height='3' fill='%23111'/%3E%3Crect x='6' y='1' width='3' height='3' fill='%23111'/%3E%3Crect x='1' y='6' width='3' height='3' fill='%23111'/%3E%3Crect x='5' y='5' width='2' height='2' fill='%23111'/%3E%3Crect x='8' y='7' width='1' height='2' fill='%23111'/%3E%3C/svg%3E";
 
 const SHARES = new Map([
   ["m1", 90000],
@@ -221,14 +225,21 @@ export function MoneySection() {
             Fewest payments to square up
           </p>
           <div className="flex w-full flex-wrap items-center gap-2">
-            <span className="text-sm font-bold text-ink">Sana</span>
+            <span className="text-sm font-bold text-ink">You</span>
             <span className="text-ink-soft">pays</span>
-            <span className="text-sm font-bold text-ink">you</span>
+            <span className="text-sm font-bold text-ink">Ravi</span>
             <span className="ml-auto font-display text-xs text-electric">
-              {formatPaise(385000)}
+              {formatPaise(180000)}
+            </span>
+            <span
+              title="Ravi's payment QR"
+              className="size-7 shrink-0 overflow-hidden rounded-lg border-2 border-silver-deep bg-white shadow-sticker"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={MOCK_QR} alt="Ravi's payment QR" className="size-full object-contain" />
             </span>
             <button type="button" className={buttonClass({ variant: "pop", size: "sm" })}>
-              Settle
+              Pay
             </button>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2">
@@ -238,10 +249,14 @@ export function MoneySection() {
             <span className="ml-auto font-display text-xs text-electric">
               {formatPaise(260000)}
             </span>
-            <button type="button" className={buttonClass({ variant: "pop", size: "sm" })}>
-              Settle
+            <button type="button" className={buttonClass({ variant: "ghost", size: "sm" })}>
+              Log promise
             </button>
           </div>
+          <p className="text-xs font-semibold text-ink-soft">
+            The person who owes sees their creditor&apos;s QR and a one-tap
+            &quot;I paid&quot;; everybody else can only log a promise.
+          </p>
         </div>
       </Block>
 

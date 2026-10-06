@@ -5,6 +5,7 @@ import { failed, runAction, type ActionState } from "@/lib/actions/state";
 import { requireSession } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/money/categories";
 import { formatPaise, parsePaise } from "@/lib/money/paise";
+import { setUpiId } from "@/lib/money/payment-qr";
 import {
   createExpense,
   createSettlement,
@@ -21,6 +22,7 @@ import {
   settlementSchema,
   settlementStatusSchema,
   shareFieldName,
+  upiIdSchema,
   type ExpenseFormInput,
 } from "@/lib/validation/money";
 
@@ -221,6 +223,7 @@ export async function createSettlementAction(
       fromMemberId: parsed.data.fromMemberId,
       toMemberId: parsed.data.toMemberId,
       amountPaise,
+      initialStatus: parsed.data.intent === "paid" ? "paid" : "pending",
     });
     revalidatePath("/money");
     return { ok: true };
@@ -290,6 +293,31 @@ export async function setBudgetAction(
     }
 
     await setBudget(context, { totalPaise, caps });
+    revalidatePath("/money");
+    return { ok: true };
+  });
+}
+
+/**
+ * Saves the member's own UPI handle (or clears it with a blank box). The image
+ * itself goes up through the `/payment-qr` route, so this action only ever
+ * touches the caller's own row — there is no member id in the form.
+ */
+export async function setUpiIdAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const context = await requireSession();
+    const parsed = upiIdSchema.safeParse(formToObject(formData));
+    if (!parsed.success) {
+      return failed(
+        "That UPI ID could not be read.",
+        parsed.error.flatten().fieldErrors as Record<string, string>,
+      );
+    }
+
+    await setUpiId(context, parsed.data.upiId ?? null);
     revalidatePath("/money");
     return { ok: true };
   });

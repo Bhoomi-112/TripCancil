@@ -100,6 +100,8 @@ const member = (id: string, name: string, role: "owner" | "member" = "member") =
   id,
   displayName: name,
   role,
+  upiId: null,
+  qrUrl: null,
 });
 const expense = (
   id: string,

@@ -32,10 +32,19 @@ export type CreateSettlementInput = {
   fromMemberId: string;
   toMemberId: string;
   amountPaise: number;
+  /**
+   * `pending` is a promise to pay; `paid` is the payer saying the money already
+   * left their account. `confirmed` is never a starting status: only the person
+   * who was handed the money can say it arrived.
+   */
+  initialStatus?: "pending" | "paid";
 };
 
 /** How long a minted receipt URL stays valid, matching the vault's previews. */
 export const RECEIPT_URL_TTL_SECONDS = 300;
+
+/** Payment QRs ride the same TTL: short-lived, re-minted on every 5s poll. */
+export const PAYMENT_QR_URL_TTL_SECONDS = 300;
 
 /**
  * Past trips are read-only, same rule as the plan and the map: a trip whose
@@ -93,7 +102,7 @@ export async function readMoney(tripId: string): Promise<MoneyPayload> {
   const [members, expenses, settlements, budget] = await Promise.all([
     supabase
       .from("members")
-      .select("id, display_name, role")
+      .select("id, display_name, role, payment_qr_path, upi_id")
       .eq("trip_id", tripId)
       .order("created_at", { ascending: true }),
     supabase
@@ -147,11 +156,28 @@ export async function readMoney(tripId: string): Promise<MoneyPayload> {
     splits = result.data ?? [];
   }
 
+  // Like receipts, every payment QR ships as a fresh signed URL: the storage
+  // path behind it never leaves the server, and a lapsed link is simply re-minted
+  // by the next poll.
+  const memberRows = members.data ?? [];
+  const memberQrUrls = await Promise.all(
+    memberRows.map(async (member) => {
+      if (!member.payment_qr_path) return null;
+      const { data, error } = await supabase.storage
+        .from("payment-qrs")
+        .createSignedUrl(member.payment_qr_path, PAYMENT_QR_URL_TTL_SECONDS);
+      if (error) throw new MoneyError(error.message);
+      return data?.signedUrl ?? null;
+    }),
+  );
+
   return {
-    members: (members.data ?? []).map((member) => ({
+    members: memberRows.map((member, index) => ({
       id: member.id,
       displayName: member.display_name,
       role: member.role,
+      upiId: member.upi_id,
+      qrUrl: memberQrUrls[index] ?? null,
     })),
     expenses: expenseRows.map((expense, index) => ({
       id: expense.id,
@@ -394,11 +420,29 @@ export async function createSettlement(
   if (input.fromMemberId === input.toMemberId) {
     throw new MoneyError("You cannot settle up with yourself.");
   }
+  if (
+    !Number.isSafeInteger(input.amountPaise) ||
+    input.amountPaise <= 0
+  ) {
+    throw new MoneyError("A settlement is a positive number of paise.");
+  }
   if (!(await assertMemberInTrip(context.trip.id, input.fromMemberId))) {
     throw new MoneyError("That payer is not in this trip.");
   }
   if (!(await assertMemberInTrip(context.trip.id, input.toMemberId))) {
     throw new MoneyError("That person is not in this trip.");
+  }
+
+  // "I paid" is a claim the payer makes about their own money, so it can only
+  // come from the payer (or the owner logging it for them) — never from the
+  // person being paid, who would be marking their own receipt as received.
+  const status = input.initialStatus ?? "pending";
+  if (
+    status === "paid" &&
+    input.fromMemberId !== context.member.id &&
+    context.member.role !== "owner"
+  ) {
+    throw new MoneyError("Only the person who paid can say it was paid.");
   }
 
   const supabase = getSupabase();
@@ -409,7 +453,7 @@ export async function createSettlement(
       from_member: input.fromMemberId,
       to_member: input.toMemberId,
       amount_paise: input.amountPaise,
-      status: "pending",
+      status,
     })
     .select("id")
     .single();

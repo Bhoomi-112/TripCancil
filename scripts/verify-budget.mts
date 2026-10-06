@@ -57,7 +57,13 @@ const { capsOf, budgetLines, budgetTotals, ratioPaise } = await import(
 );
 
 type P = Parameters<typeof budgetLines>[0];
-const member = (id: string) => ({ id, displayName: id, role: "member" as const });
+const member = (id: string) => ({
+  id,
+  displayName: id,
+  role: "member" as const,
+  upiId: null,
+  qrUrl: null,
+});
 const expense = (
   id: string,
   amountPaise: number,
