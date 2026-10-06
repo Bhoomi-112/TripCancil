@@ -16,7 +16,7 @@ import {
 } from "@/lib/maps/places";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { StarIcon } from "@/components/ui/icons";
+import { LockIcon, StarIcon } from "@/components/ui/icons";
 import { Window } from "@/components/ui/window";
 import { BallotRow } from "./ballot-row";
 
@@ -47,6 +47,9 @@ export function Ballot({
 }: Props) {
   const [showLocked, setShowLocked] = useState(false);
 
+  // Candidates rank first; the settled pins trail behind in their own section,
+  // still in score order, because a settled decision is worth a glance but not
+  // a place in the race.
   const candidates = useMemo(
     () => payload.places.filter((place) => place.status !== "locked"),
     [payload],
@@ -55,33 +58,30 @@ export function Ballot({
     () => payload.places.filter((place) => place.status === "locked"),
     [payload],
   );
-  // Candidates ranked by score; locked pins trail behind, still in score order,
-  // because a settled decision is worth a glance but not a place in the race.
-  const rows = useMemo(
-    () => (showLocked ? sortBallot([...candidates, ...locked]) : sortBallot(candidates)),
-    [candidates, locked, showLocked],
-  );
+  const candidateRows = useMemo(() => sortBallot(candidates), [candidates]);
+  const lockedRows = useMemo(() => sortBallot(locked), [locked]);
 
   const votesCast = totalVotesCast(payload);
-  const leader = sortBallot(candidates)[0];
+  const leader = candidateRows[0];
   const mine = candidates.filter(
     (place) => myVoteFor(place, viewerId) !== null,
   ).length;
+  const cheering = candidateRows.length > 1;
 
   return (
     <Window
       title="Ballot"
       icon={<StarIcon className="size-4 text-sunny" />}
       actions={
-        <Badge tone={candidates.length > 0 ? "pop" : "chrome"}>
-          {candidates.length} up for grabs
+        <Badge tone={candidateRows.length > 0 ? "pop" : "chrome"}>
+          {candidateRows.length} up for grabs
         </Badge>
       }
       footer={
         editable ? (
           <p className="text-[11px] font-semibold text-ink-soft">
             {votesCast} vote{votesCast === 1 ? "" : "s"} cast · you have weighed in
-            on {mine} of {candidates.length}
+            on {mine} of {candidateRows.length}
             {leader && leader.votes.score > 0
               ? ` · ${leader.name} is winning`
               : ""}
@@ -93,7 +93,7 @@ export function Ballot({
         )
       }
     >
-      {rows.length === 0 ? (
+      {candidateRows.length === 0 && lockedRows.length === 0 ? (
         <EmptyState
           illustration="map"
           title="No candidates yet"
@@ -101,34 +101,65 @@ export function Ballot({
         />
       ) : (
         <>
-          {locked.length > 0 ? (
+          {lockedRows.length > 0 ? (
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setShowLocked((value) => !value)}
                 aria-pressed={showLocked}
-                className="rounded-full border-2 border-silver-deep bg-white/70 px-2.5 py-1 font-display text-[9px] uppercase tracking-tight text-ink transition-transform duration-150 active:translate-y-[2px] hover:border-ink"
+                aria-expanded={showLocked}
+                className="inline-flex items-center gap-1.5 rounded-full border-2 border-silver-deep bg-white/70 px-2.5 py-1 font-display text-[9px] uppercase tracking-tight text-ink transition-transform duration-150 hover:border-ink active:translate-y-[2px]"
               >
-                {showLocked ? "Hide" : "Show"} the {locked.length} settled
+                <LockIcon className="size-3 text-ink-soft" aria-hidden="true" />
+                {showLocked ? "Hide" : "Show"} the {lockedRows.length} settled
               </button>
             </div>
           ) : null}
 
-          <ul className="flex flex-col gap-2">
-            {rows.map((place) => (
-              <BallotRow
-                key={place.id}
-                place={place}
-                members={payload.members}
-                viewerId={viewerId}
-                days={days}
-                isOwner={isOwner}
-                editable={editable}
-                onVote={onVote}
-                onLockIn={onLockIn}
-              />
-            ))}
-          </ul>
+          {candidateRows.length > 0 ? (
+            <ul className="flex flex-col gap-2">
+              {candidateRows.map((place, index) => (
+                <BallotRow
+                  key={place.id}
+                  place={place}
+                  members={payload.members}
+                  viewerId={viewerId}
+                  days={days}
+                  isOwner={isOwner}
+                  editable={editable}
+                  rank={cheering ? index + 1 : undefined}
+                  onVote={onVote}
+                  onLockIn={onLockIn}
+                />
+              ))}
+            </ul>
+          ) : null}
+
+          {lockedRows.length > 0 && showLocked ? (
+            <div className="mt-3">
+              <div className="mb-2 flex items-center gap-2">
+                <h3 className="font-display text-[9px] uppercase tracking-tight text-ink-soft">
+                  Settled decisions
+                </h3>
+                <span className="h-px flex-1 bg-silver-deep/70" aria-hidden="true" />
+              </div>
+              <ul className="flex flex-col gap-2">
+                {lockedRows.map((place) => (
+                  <BallotRow
+                    key={place.id}
+                    place={place}
+                    members={payload.members}
+                    viewerId={viewerId}
+                    days={days}
+                    isOwner={isOwner}
+                    editable={editable}
+                    onVote={onVote}
+                    onLockIn={onLockIn}
+                  />
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <VibeLegend />
         </>

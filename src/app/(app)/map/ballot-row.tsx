@@ -21,6 +21,7 @@ import {
 } from "@/lib/maps/places";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { ArrowDownIcon, ArrowUpIcon, LockIcon } from "@/components/ui/icons";
 import { Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { lockInPlaceAction, voteOnPlaceAction } from "./actions";
@@ -32,6 +33,8 @@ type Props = {
   days: TripDay[];
   isOwner: boolean;
   editable: boolean;
+  /** 1-based place among the candidates; only the top three wear a medal. */
+  rank?: number;
   /**
    * Replaces the server round trip. Only the design page passes one, because it
    * has no session and no database: there the ballot is a poster, not a form.
@@ -47,6 +50,7 @@ export function BallotRow({
   days,
   isOwner,
   editable,
+  rank,
   onVote,
   onLockIn,
 }: Props) {
@@ -63,6 +67,10 @@ export function BallotRow({
   const locked = place.status === "locked";
   const voters = votersInNameOrder(place, members);
   const proposer = nameOf(members, place.proposedBy);
+  const daysLabel = place.days
+    .map((index) => days[index]?.label ?? `Day ${index + 1}`)
+    .join(", ");
+  const medal = rank !== undefined && rank <= 3;
 
   async function vote(value: VoteValue) {
     if (busy) return;
@@ -90,13 +98,20 @@ export function BallotRow({
   return (
     <li
       className={cn(
-        "flex flex-col gap-2 rounded-bubble border-2 bg-white/70 p-3",
-        locked ? "border-silver-deep" : "border-silver-mid",
+        "flex flex-col gap-2 rounded-bubble border-2 p-3",
+        locked
+          ? "border-silver-deep bg-white/50"
+          : "border-silver-mid bg-white/70",
       )}
     >
       <div className="flex items-start gap-2">
+        {medal ? <RankMedal rank={rank as number} /> : null}
+
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm leading-tight font-extrabold text-ink">
+            {locked ? (
+              <LockIcon className="size-3.5 shrink-0 text-ink-soft" aria-hidden="true" />
+            ) : null}
             {place.locationType ? (
               <span
                 className="size-2.5 shrink-0 rounded-full border border-ink/20"
@@ -108,24 +123,31 @@ export function BallotRow({
             ) : null}
             <span className="truncate">{place.name}</span>
           </p>
-          <p className="mt-0.5 font-display text-[9px] uppercase tracking-tight text-ink-soft">
+          <p
+            className={cn(
+              "mt-0.5 font-display text-[9px] uppercase tracking-tight",
+              locked ? "text-ink-soft/70" : "text-ink-soft",
+            )}
+          >
             {locked ? "Locked in" : "Candidate"}
             {place.locationType
               ? ` · ${LOCATION_TYPE_LABELS[place.locationType as LocationType]}`
               : ""}
             {proposer ? ` · by ${proposer}` : ""}
-            {place.days.length > 0
-              ? ` · ${place.days
-                  .map((index) => days[index]?.label ?? `Day ${index + 1}`)
-                  .join(", ")}`
-              : ""}
+            {daysLabel ? (locked ? ` · on ${daysLabel}` : ` · ${daysLabel}`) : ""}
           </p>
         </div>
-        <ScoreBadge score={place.votes.score} />
+
+        <ScoreBadge
+          score={place.votes.score}
+          locked={locked}
+          up={place.votes.up}
+          down={place.votes.down}
+        />
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Ring colour is the vote: green for in, pink for out, plain for quiet. */}
+        {/* Ring colour is the vote: lime for in, pink for out, plain for quiet. */}
         <div className="flex min-w-0 flex-1 items-center -space-x-1.5">
           {voters.length === 0 ? (
             <span className="text-[11px] font-semibold text-ink-soft">
@@ -148,16 +170,16 @@ export function BallotRow({
         </div>
 
         {!locked && editable ? (
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1.5">
             <VoteButton
-              label="Vote yes"
+              value={1}
               count={place.votes.up}
               active={mine === 1}
               busy={busy === 1}
               onClick={() => vote(1)}
             />
             <VoteButton
-              label="Vote no"
+              value={-1}
               count={place.votes.down}
               active={mine === -1}
               busy={busy === -1}
@@ -165,11 +187,25 @@ export function BallotRow({
             />
           </div>
         ) : (
-          <span className="shrink-0 font-display text-[9px] uppercase tracking-tight text-ink-soft">
-            {place.votes.up} in · {place.votes.down} out
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border-2 border-silver-deep bg-white/70 px-2.5 py-1 font-display text-[9px] uppercase tracking-tight text-ink-soft">
+            <ArrowUpIcon className="size-3 text-lime-deep" aria-hidden="true" />
+            {place.votes.up}
+            <span className="text-ink/25" aria-hidden="true">
+              ·
+            </span>
+            {place.votes.down}
+            <ArrowDownIcon className="size-3 text-hotpink-deep" aria-hidden="true" />
           </span>
         )}
       </div>
+
+      {voters.length > 0 ? (
+        <SplitBar
+          up={place.votes.up}
+          down={place.votes.down}
+          total={voters.length}
+        />
+      ) : null}
 
       {isOwner && editable && !locked ? (
         <LockInForm place={place} days={days} onLockIn={onLockIn} />
@@ -178,32 +214,91 @@ export function BallotRow({
   );
 }
 
-/** One tap, one vote, one change of mind. Tapping it again takes the vote back. */
+/**
+ * The standing of each place at a glance: a one-segment bar that fills lime for
+ * the votes in and pink for the votes out, so a row with a three-inch lime run
+ * is clearly winning even with the phone face down.
+ */
+function SplitBar({ up, down, total }: { up: number; down: number; total: number }) {
+  return (
+    <div
+      role="img"
+      aria-label={`${up} in, ${down} out`}
+      className="flex h-1.5 w-full overflow-hidden rounded-full border border-ink/10 bg-silver"
+    >
+      {up > 0 ? (
+        <div
+          className="h-full bg-lime-deep"
+          style={{ width: `${(up / total) * 100}%` }}
+        />
+      ) : null}
+      {down > 0 ? (
+        <div
+          className="h-full bg-hotpink"
+          style={{ width: `${(down / total) * 100}%` }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ordinal(rank: number) {
+  if (rank === 1) return "1st";
+  if (rank === 2) return "2nd";
+  return "3rd";
+}
+
+function RankMedal({ rank }: { rank: number }) {
+  return (
+    <span
+      title={`#${rank} in the ballot`}
+      className={cn(
+        "flex size-7 shrink-0 items-center justify-center rounded-full border-2 font-display text-[10px] shadow-bubble",
+        rank === 1
+          ? "border-[#b57a00] bg-sunny text-ink shadow-sticker"
+          : rank === 2
+            ? "border-silver-deep bg-linear-to-b from-white to-silver-mid text-ink"
+            : "border-ink bg-electric text-white",
+      )}
+    >
+      {ordinal(rank)}
+    </span>
+  );
+}
+
+/**
+ * In / Out, one tap each. Tapping an active one again takes the vote back, and
+ * the whole pill flips to the vote's colour so the active side is unmissable.
+ */
 function VoteButton({
-  label,
+  value,
   count,
   active,
   busy,
   onClick,
 }: {
-  label: string;
+  value: VoteValue;
   count: number;
   active: boolean;
   busy: boolean;
   onClick: () => void;
 }) {
+  const inVote = value === 1;
+  const Icon = inVote ? ArrowUpIcon : ArrowDownIcon;
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      aria-label={label}
-      title={label}
       aria-busy={busy || undefined}
+      aria-label={`Vote ${inVote ? "in" : "out"}`}
+      title={inVote ? "Worth the drive" : "Skip it"}
       className={cn(
-        "inline-flex min-w-11 items-center justify-center gap-1 rounded-full border-2 px-2 py-1 font-display text-[9px] uppercase tracking-tight transition-transform duration-150 active:translate-y-[2px]",
+        "inline-flex items-center gap-1 rounded-full border-2 px-2 py-1 font-display text-[9px] uppercase tracking-tight transition-transform duration-150 active:translate-y-[2px]",
         active
-          ? "border-ink bg-lime text-ink shadow-sticker"
+          ? inVote
+            ? "border-ink bg-lime text-ink shadow-sticker"
+            : "border-ink bg-hotpink text-white shadow-sticker"
           : "border-silver-deep bg-white text-ink-soft hover:border-ink",
       )}
     >
@@ -213,27 +308,47 @@ function VoteButton({
           aria-hidden="true"
         />
       ) : (
-        count
+        <Icon className="size-3" aria-hidden="true" />
       )}
-      <span aria-hidden="true">{active ? "✓" : ""}</span>
+      <span>{inVote ? "In" : "Out"}</span>
+      <span
+        className={cn(
+          "rounded-full px-1",
+          active ? "bg-white/30" : "bg-silver-deep/60 text-ink",
+        )}
+      >
+        {count}
+      </span>
     </button>
   );
 }
 
-function ScoreBadge({ score }: { score: number }) {
+function ScoreBadge({
+  score,
+  locked,
+  up,
+  down,
+}: {
+  score: number;
+  locked: boolean;
+  up: number;
+  down: number;
+}) {
   return (
     <span
       className={cn(
         "gloss inline-flex shrink-0 items-center gap-1 rounded-full border-2 px-2.5 py-1 font-display text-xs shadow-bubble",
-        score > 0
-          ? "border-lime-deep bg-lime text-ink"
-          : score < 0
-            ? "border-hotpink-deep bg-hotpink text-white"
-            : "border-silver-deep bg-linear-to-b from-white to-silver-mid text-ink",
+        locked
+          ? "border-silver-deep bg-linear-to-b from-white to-silver-mid text-ink"
+          : score > 0
+            ? "border-lime-deep bg-lime text-ink"
+            : score < 0
+              ? "border-hotpink-deep bg-hotpink text-white"
+              : "border-silver-deep bg-linear-to-b from-white to-silver-mid text-ink",
       )}
-      title="Upvotes minus downvotes"
+      title={`${up} in, ${down} out`}
     >
-      {score > 0 ? `+${score}` : score}
+      {locked && score === 0 ? "✓" : score > 0 ? `+${score}` : score}
     </span>
   );
 }
