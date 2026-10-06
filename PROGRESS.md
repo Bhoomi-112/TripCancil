@@ -550,6 +550,13 @@
   `assigned_to`. The "carried by nobody" state therefore only exists on a fresh
   item. Acceptable for v1 (avoids accidentally dropping who's carrying the tent),
   but the hint in the form currently overpromises.
+- Fixed this session: `(auth)/layout.tsx` used to bounce any signed-in traveller
+  away from `/join` and `/new` to `/plan` (their current trip), so "Add a trip"
+  and "Start a trip" from the my-trips hub silently opened the old trip. The
+  guards are gone; the forms reachable while signed in, and the submitting
+  action mints the new trip's session cookie over the old one. Verified by two
+  new harness checks (both screens render 200 + the right form for a signed-in
+  cookie; previously 307 to the old plan).
 
 ## Deferred
 - Place votes: `place_votes` is still empty and nothing counts them, so a candidate has no

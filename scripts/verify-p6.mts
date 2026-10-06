@@ -167,6 +167,18 @@ check("the packing route needs a session", signedOutPacking.status === 401, Stri
 const signedOutDocs = await fetch(`${BASE}/api/trips/${other.tripId}/documents`);
 check("the vault route needs a session", signedOutDocs.status === 401, String(signedOutDocs.status));
 
+// A traveller already inside one trip must still reach /join and /new: joining or
+// starting another trip is how a second membership is added (regression for the
+// auth-layout bounce that used to send signed-in users back to their current trip).
+const signedInNew = await fetch(`${BASE}/new`, { headers: { cookie: otherCookie }, redirect: "manual" });
+const signedInNewBody = await signedInNew.text();
+check("a signed-in traveller can reach the start-trip screen", signedInNew.status === 200, String(signedInNew.status));
+check("the start screen shows the create form", signedInNewBody.includes("We mint a 12-character invite code"));
+const signedInJoin = await fetch(`${BASE}/join`, { headers: { cookie: otherCookie }, redirect: "manual" });
+const signedInJoinBody = await signedInJoin.text();
+check("a signed-in traveller can reach the join-trip screen", signedInJoin.status === 200, String(signedInJoin.status));
+check("the join screen shows the join form", signedInJoinBody.includes("One invite code, one display name, one PIN"));
+
 // ------------------------------------------------------------- packing rules
 
 const [owner, second, third] = live.memberIds;
