@@ -11,19 +11,22 @@ import { isMoneyKey, type MoneyExpense } from "@/lib/money/balances";
 import { CATEGORY_COLOURS, CATEGORY_LABELS } from "@/lib/money/categories";
 import { describeSplit, formatPaise } from "@/lib/money/paise";
 import { deleteExpenseAction } from "./actions";
+import { ReceiptControl } from "./receipt-control";
 
 type Props = {
   expense: MoneyExpense;
+  tripId: string;
   /** member id -> their share of this expense. */
   shares: Map<string, number>;
   names: Map<string, string>;
   viewerId: string;
   editable: boolean;
-  onEdit: (expense: MoneyExpense, sharerIds: string[]) => void;
+  onEdit: (expense: MoneyExpense, shares: Map<string, number>) => void;
 };
 
 export function ExpenseRow({
   expense,
+  tripId,
   shares,
   names,
   viewerId,
@@ -64,13 +67,20 @@ export function ExpenseRow({
         {formatPaise(expense.amount_paise)}
       </p>
 
+      <ReceiptControl
+        tripId={tripId}
+        expenseId={expense.id}
+        receiptUrl={expense.receiptUrl}
+        editable={editable}
+      />
+
       {editable ? (
         <div className="flex shrink-0 gap-1">
           <IconButton
             label={`Edit ${label}`}
             variant="ghost"
             size="sm"
-            onClick={() => onEdit(expense, [...shares.keys()])}
+            onClick={() => onEdit(expense, shares)}
           >
             <PencilIcon className="size-4" />
           </IconButton>

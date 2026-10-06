@@ -115,7 +115,7 @@ const expense = (
   category,
   note: null,
   spent_on: "2026-10-02",
-  receipt_path: null,
+  receiptUrl: null,
   deleted_at: deleted ? "2026-10-03T00:00:00Z" : null,
   created_at: "2026-10-02T00:00:00Z",
 });

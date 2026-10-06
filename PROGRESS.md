@@ -597,9 +597,55 @@
   sends the budget row and nothing private. Re-ran `verify-money.mts` (89/89) and
   `verify-p6.mts` (87/87) — no regressions; `typecheck`, `lint` and `build` clean.
 
+## P8: uneven splits + receipts (done)
+
+- **Uneven splits** — the expense form grows an **Equally** / **By share**
+  toggle (`expense-form.tsx`, posted as `splitMode`). Share mode renders one
+  rupee box per person in the split (`share-<member-id>`, so the action never
+  trusts keys, it derives them from `splitWith + payerId`), pre-filled from the
+  equal split of the amount, with a live "X of ₹Y placed · ₹Z left" line. The
+  payer can be given a **0** share (they chipped in nothing); unticking a member
+  withdraws their box; editing an expense that was split unevenly opens straight
+  back into the share boxes with the saved numbers, because `money-board` now
+  hands the edit form the shares map instead of just the member id list.
+- The ledger accepted any set of shares already, so the service change is the
+  gate: `CreateExpenseInput.shares`, resolved by a new `resolveShares` that
+  refuses a stranger's share, a missing member ("Every person in the split needs
+  a share."), a float or negative share ("whole number of paise") and a sum that
+  does not equal the amount — before a single split row is written. Equal stays
+  the default and unchanged for everyone else.
+- **Receipts** — `expenses.receipt_path` is finally fed. `src/lib/money/receipts.ts`
+  uploads an image (PNG/JPG/WebP only, 10 MB, the same MIME/limit list the bucket
+  enforces) to `receipts/<trip>/<uuid>-<slug>.<ext>` (the bucket already existed
+  in `001`), deleting the old file before the new one lands so a trip shelf never
+  holds two copies of one bill, and recording only the path. Any member can pin
+  or unpin a receipt while the trip is live (`assertTripEditable`); `readMoney`
+  re-mints a **300s signed URL** per receipt on every poll — and, like the vault,
+  the wire shape strips `receipt_path` entirely (`MoneyExpense` is now
+  `Omit<Tables<"expenses">, "receipt_path"> & { receiptUrl }`).
+- The expense row shows a tiny receipt thumbnail that opens the signed URL in a
+  new tab, an attach button, and a remove control — all via
+  `POST` / `DELETE /api/trips/[tripId]/expenses/[expenseId]/receipt`
+  (`ReceiptControl`), which re-check session, trip, membership and path trip id
+  before touching storage.
+
+### How P8 was verified
+- **43/43 live checks** in `scripts/verify-p8.mts` against live Supabase + the
+  dev server: custom shares stored exactly (including a payer at 0), balances
+  follow them, equal fallback intact; sum mismatch / stranger / missing member /
+  float all refused; edit replaces shares wholesale; routes and MIME gates; an
+  upload lands namespaced to the trip, `readMoney` ships a fetchable signed URL
+  (bytes round-trip) and never a `receipt_path`, replacing leaves one file on
+  the shelf, an over trip and a foreign expense id are refused; the page shows
+  the thumbnail and hides the path; multipart POST / DELETE / wrong-trip 404 /
+  no-session 401 round-trip; seeded ledger untouched. Re-ran `verify-money.mts`
+  (89/89), `verify-budget.mts` (41/41), `verify-votes.mts` (89/89) and
+  `verify-p6.mts` (87/87) — no regressions; `typecheck`, `lint`, `build` clean.
+- Fixtures updated for the leaner wire shape (`receiptUrl: null`, no
+  `receipt_path`) in `design/money-section.tsx`, `verify-money.mts` and
+  `verify-budget.mts`.
+
 ## Deferred
-- Place votes: `place_votes` is still empty and nothing counts them, so a candidate has no
-  score yet.
 - Deleting or moving a pin from the map. Adding is covered; removal waits on a prompt that
   says what should happen to stops already pointing at it.
 - Marker clustering. Six pins look great, forty in one weekend will need it.
@@ -608,10 +654,6 @@
 - Cross-day dragging: items move days through the edit form's day picker, not by dragging a
   row onto another chip.
 - A trip longer than 30 days cannot be planned past day 30 (see `MAX_TRIP_DAYS`).
-- Money: receipts on expenses. `expenses.receipt_path` exists and the private-bucket rule already
-  covers documents, but nothing uploads one yet.
-- Money: unequal splits. The UI splits equally and the ledger handles any set of shares, because
-  deciding who had the bigger tent is a longer conversation than logging it.
 - Money: currency. `trips.base_currency` exists and every screen assumes INR.
 - A traveller account cannot be recovered: there is no email, so a device that is forgotten
   is a new traveller. Its unclaimed memberships can still be re-claimed by entering the PIN
@@ -622,10 +664,9 @@
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## Next: P8
-- The next prompt is **P8: unequal splits + receipts**: the ledger already handles
-  any set of shares, so this is mostly the expense form growing a per-member share
-  input, plus `expenses.receipt_path` being uploaded to a private bucket and served
-  by signed URLs, and a line on an expense that other debts could attach to.
-- After that the pack order runs P9 (payment QR storage), then the photobooth and
-  the public recap page.
+## Next: P9
+- The next prompt is **P9: payment QR storage**. The plan (from P0's pack order):
+  `payment-qrs` bucket belongs to the money story, so a QR image (UPI, NEQR,
+  account scan) gets uploaded like a receipt, shown alongside the transfer it
+  pays, and covered by the same signed-URL rule. The pack order then runs the
+  photobooth and the public recap page.

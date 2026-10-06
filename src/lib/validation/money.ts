@@ -22,8 +22,15 @@ export const expenseSchema = z.object({
   spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
   payerId: z.string().uuid("Pick who paid"),
   splitWith: splitWithSchema,
+  /** "equal" splits the amount for everyone; "share" sends one `share-<id>` field per person. */
+  splitMode: z.enum(["equal", "share"]).default("equal"),
 });
 export type ExpenseFormInput = z.infer<typeof expenseSchema>;
+
+/** The hidden share field a custom split posts under, e.g. `share-<uuid>`. */
+export function shareFieldName(memberId: string): string {
+  return `share-${memberId}`;
+}
 
 export const settlementSchema = z.object({
   fromMemberId: z.string().uuid(),

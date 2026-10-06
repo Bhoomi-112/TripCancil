@@ -20,6 +20,12 @@ export type CreateExpenseInput = {
   spentOn: string;
   payerId: string;
   splitWith: string[];
+  /**
+   * When present, used instead of an equal split. The keys must be exactly the
+   * sharers (splitWith plus the payer) and must add up to amountPaise; the
+   * service is the last line of defence against a hand-rolled request.
+   */
+  shares?: Record<string, number>;
 };
 
 export type CreateSettlementInput = {
@@ -27,6 +33,9 @@ export type CreateSettlementInput = {
   toMemberId: string;
   amountPaise: number;
 };
+
+/** How long a minted receipt URL stays valid, matching the vault's previews. */
+export const RECEIPT_URL_TTL_SECONDS = 300;
 
 /**
  * Past trips are read-only, same rule as the plan and the map: a trip whose
@@ -38,6 +47,44 @@ function assertTripEditable(context: SessionContext): void {
       `"${context.trip.name}" is over, so the ledger is read-only now.`,
     );
   }
+}
+
+/**
+ * The shares that actually get stored. Equal by default; a custom `shares` map
+ * must cover exactly the sharers and add up to the amount, or the split is
+ * refused rather than silently "corrected" to something the group did not agree.
+ */
+function resolveShares(input: CreateExpenseInput): Map<string, number> {
+  const members = new Set(input.splitWith);
+  members.add(input.payerId);
+
+  if (input.shares === undefined) {
+    return splitEqually(input.amountPaise, [...members]);
+  }
+
+  const shares = input.shares;
+  const memberIds = [...members];
+  const strangers = Object.keys(shares).filter(
+    (memberId) => !members.has(memberId),
+  );
+  if (strangers.length > 0) {
+    throw new MoneyError("Some of the shares were for people who are not in this trip.");
+  }
+  if (memberIds.length !== Object.keys(shares).length) {
+    throw new MoneyError("Every person in the split needs a share.");
+  }
+  for (const memberId of memberIds) {
+    const share = shares[memberId];
+    if (typeof share !== "number" || !Number.isInteger(share) || share < 0) {
+      throw new MoneyError("Every share has to be a whole number of paise.");
+    }
+  }
+  const total = Object.values(shares).reduce((sum, share) => sum + share, 0);
+  if (total !== input.amountPaise) {
+    throw new MoneyError("The shares have to add up to the amount.");
+  }
+
+  return new Map(memberIds.sort().map((memberId) => [memberId, shares[memberId] as number]));
 }
 
 export async function readMoney(tripId: string): Promise<MoneyPayload> {
@@ -72,6 +119,20 @@ export async function readMoney(tripId: string): Promise<MoneyPayload> {
   if (settlements.error) throw new MoneyError(settlements.error.message);
   if (budget.error) throw new MoneyError(budget.error.message);
 
+  // Every receipt ships as a fresh signed URL (same rule as the vault), so the
+  // browser gets a preview it can afford to open, never a storage path.
+  const expenseRows = expenses.data ?? [];
+  const receipts = await Promise.all(
+    expenseRows.map(async (expense) => {
+      if (!expense.receipt_path) return null;
+      const { data, error } = await supabase.storage
+        .from("receipts")
+        .createSignedUrl(expense.receipt_path, RECEIPT_URL_TTL_SECONDS);
+      if (error) throw new MoneyError(error.message);
+      return data?.signedUrl ?? null;
+    }),
+  );
+
   // `expense_splits` has no trip_id of its own, so the trip's rows are found
   // through the expense ids that came back with the ledger. Soft-deleted
   // expenses keep their splits: the audit trail includes who was in the split.
@@ -92,7 +153,18 @@ export async function readMoney(tripId: string): Promise<MoneyPayload> {
       displayName: member.display_name,
       role: member.role,
     })),
-    expenses: expenses.data ?? [],
+    expenses: expenseRows.map((expense, index) => ({
+      id: expense.id,
+      trip_id: expense.trip_id,
+      payer_id: expense.payer_id,
+      amount_paise: expense.amount_paise,
+      category: expense.category,
+      note: expense.note,
+      spent_on: expense.spent_on,
+      deleted_at: expense.deleted_at,
+      created_at: expense.created_at,
+      receiptUrl: receipts[index] ?? null,
+    })),
     splits,
     settlements: settlements.data ?? [],
     budget: budget.data ?? null,
@@ -183,7 +255,7 @@ export async function createExpense(
     }
   }
 
-  const shares = splitEqually(input.amountPaise, [...members]);
+  const shares = resolveShares(input);
 
   const supabase = getSupabase();
   const { data, error } = await supabase
@@ -260,7 +332,7 @@ export async function updateExpense(
     }
   }
 
-  const shares = splitEqually(input.amountPaise, [...members]);
+  const shares = resolveShares(input);
   const supabase = getSupabase();
 
   const { error } = await supabase

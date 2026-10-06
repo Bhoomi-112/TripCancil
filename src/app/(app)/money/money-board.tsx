@@ -72,14 +72,17 @@ export function MoneyBoard({
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<{
     expense: MoneyExpense;
-    sharerIds: string[];
+    shares: Map<string, number>;
   } | null>(null);
   const [settling, setSettling] = useState<Transfer | null>(null);
   const [tab, setTab] = useState("all");
 
-  const startEdit = useCallback((expense: MoneyExpense, sharerIds: string[]) => {
-    setEditing({ expense, sharerIds });
-  }, []);
+  const startEdit = useCallback(
+    (expense: MoneyExpense, shares: Map<string, number>) => {
+      setEditing({ expense, shares });
+    },
+    [],
+  );
 
   const names = useMemo(() => namesFor(payload), [payload]);
   const balances = useMemo(() => computeBalances(payload), [payload]);
@@ -302,6 +305,7 @@ export function MoneyBoard({
         ) : (
           <TabPanel when="all" active={tab}>
             <ExpenseList
+              tripId={tripId}
               byDay={byDay}
               sharesByExpense={sharesByExpense}
               names={names}
@@ -316,6 +320,7 @@ export function MoneyBoard({
           ? categories.map((entry) => (
               <TabPanel key={entry.category} when={entry.category} active={tab}>
                 <ExpenseList
+                  tripId={tripId}
                   byDay={byDay.filter(([, list]) =>
                     list.some((expense) => expense.category === entry.category),
                   )}
@@ -350,7 +355,7 @@ export function MoneyBoard({
           today={today}
           viewerId={viewerId}
           expense={editing.expense}
-          splitMemberIds={editing.sharerIds}
+          sharesById={editing.shares}
           onClose={() => setEditing(null)}
         />
       ) : null}
@@ -370,16 +375,18 @@ export function MoneyBoard({
 }
 
 type ListProps = {
+  tripId: string;
   byDay: [string, MoneyExpense[]][];
   sharesByExpense: Map<string, Map<string, number>>;
   names: Map<string, string>;
   viewerId: string;
   editable: boolean;
-  onEdit: (expense: MoneyExpense, sharerIds: string[]) => void;
+  onEdit: (expense: MoneyExpense, shares: Map<string, number>) => void;
   onlyCategory?: string;
 };
 
 function ExpenseList({
+  tripId,
   byDay,
   sharesByExpense,
   names,
@@ -409,6 +416,7 @@ function ExpenseList({
               <ExpenseRow
                 key={expense.id}
                 expense={expense}
+                tripId={tripId}
                 shares={sharesByExpense.get(expense.id) ?? new Map()}
                 names={names}
                 viewerId={viewerId}

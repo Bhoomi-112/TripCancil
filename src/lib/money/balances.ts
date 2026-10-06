@@ -28,7 +28,14 @@ export type MoneyMember = {
   role: Enums<"member_role">;
 };
 
-export type MoneyExpense = Tables<"expenses">;
+/**
+ * An expense as the ledger ships it. `receiptUrl` is a short-lived signed URL to
+ * the private copy of the bill, minted per poll; a row with no receipt is null.
+ * The storage path itself never leaves the server.
+ */
+export type MoneyExpense = Omit<Tables<"expenses">, "receipt_path"> & {
+  receiptUrl: string | null;
+};
 export type MoneySplit = Tables<"expense_splits">;
 export type MoneySettlement = Tables<"settlements">;
 

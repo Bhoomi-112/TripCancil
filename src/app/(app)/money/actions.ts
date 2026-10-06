@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { failed, runAction, type ActionState } from "@/lib/actions/state";
 import { requireSession } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/money/categories";
-import { parsePaise } from "@/lib/money/paise";
+import { formatPaise, parsePaise } from "@/lib/money/paise";
 import {
   createExpense,
   createSettlement,
@@ -20,6 +20,7 @@ import {
   expenseSchema,
   settlementSchema,
   settlementStatusSchema,
+  shareFieldName,
   type ExpenseFormInput,
 } from "@/lib/validation/money";
 
@@ -34,7 +35,65 @@ type ExpenseInput = {
   spentOn: string;
   payerId: string;
   splitWith: string[];
+  /** Present only when the form posted a custom split (splitMode = "share"). */
+  shares?: Record<string, number>;
 };
+
+const EMPTY_INPUT: ExpenseInput = {
+  amountPaise: 0,
+  category: "other",
+  spentOn: "",
+  payerId: "",
+  splitWith: [],
+};
+
+/**
+ * Custom shares arrive as one `share-<memberId>` text field per person. Every
+ * field has to parse to paise (a bare "0" counts as a free seat), the keys are
+ * never trusted, and the sum must come to the exact amount or the split is
+ * refused right here rather than half-saved.
+ */
+function readShares(
+  formData: FormData,
+  amountPaise: number,
+  sharerIds: string[],
+): { shares?: Record<string, number>; error?: ActionState } {
+  const shares: Record<string, number> = {};
+  const fieldErrors: Record<string, string> = {};
+
+  for (const memberId of sharerIds) {
+    const field = shareFieldName(memberId);
+    const text = formData.get(field);
+    if (typeof text !== "string" || text.trim() === "") {
+      fieldErrors[field] = "Give every person a share.";
+      continue;
+    }
+    if (text.trim() === "0") {
+      shares[memberId] = 0;
+      continue;
+    }
+    const paise = parsePaise(text);
+    if (paise === null) {
+      fieldErrors[field] = "Not money.";
+      continue;
+    }
+    shares[memberId] = paise;
+  }
+
+  if (Object.keys(fieldErrors).length > 0) {
+    return { error: failed("Some of those shares could not be read.", fieldErrors) };
+  }
+
+  const total = Object.values(shares).reduce((sum, paise) => sum + paise, 0);
+  if (total !== amountPaise) {
+    return {
+      error: failed(
+        `The shares come to ${formatPaise(total)}, not ${formatPaise(amountPaise)}.`,
+      ),
+    };
+  }
+  return { shares };
+}
 
 function readExpenseInput(
   formData: FormData,
@@ -46,7 +105,7 @@ function readExpenseInput(
 
   if (!parsed.success) {
     return {
-      input: { amountPaise: 0, category: "other", spentOn: "", payerId: "", splitWith: [] },
+      input: EMPTY_INPUT,
       error: failed(
         "That expense could not be read.",
         parsed.error.flatten().fieldErrors as Record<string, string>,
@@ -57,23 +116,32 @@ function readExpenseInput(
   const amountPaise = parsePaise(parsed.data.amountRupees);
   if (amountPaise === null) {
     return {
-      input: { amountPaise: 0, category: "other", spentOn: "", payerId: "", splitWith: [] },
+      input: EMPTY_INPUT,
       error: failed("That amount is not money.", {
         amountRupees: "Try something like 1,200.50",
       }),
     };
   }
 
-  return {
-    input: {
-      amountPaise,
-      category: parsed.data.category,
-      note: parsed.data.note,
-      spentOn: parsed.data.spentOn,
-      payerId: parsed.data.payerId,
-      splitWith: parsed.data.splitWith,
-    },
+  const baseInput: ExpenseInput = {
+    amountPaise,
+    category: parsed.data.category,
+    note: parsed.data.note,
+    spentOn: parsed.data.spentOn,
+    payerId: parsed.data.payerId,
+    splitWith: parsed.data.splitWith,
   };
+
+  // The payer is always in the split, so the form renders a share box for them
+  // too; the service re-checks the same set before saving.
+  const sharerIds = [...new Set([...parsed.data.splitWith, parsed.data.payerId])];
+  if (parsed.data.splitMode === "share") {
+    const { shares, error } = readShares(formData, amountPaise, sharerIds);
+    if (error) return { input: EMPTY_INPUT, error };
+    return { input: { ...baseInput, shares } };
+  }
+
+  return { input: baseInput };
 }
 
 export async function createExpenseAction(
