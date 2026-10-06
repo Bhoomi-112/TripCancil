@@ -708,6 +708,66 @@
   (which also previews the new Pay / Log promise transfer rows),
   `verify-money.mts` and `verify-budget.mts`.
 
+## P10: photobooth engine, upload-based (done)
+- **`src/lib/booth/`** — the engine sits apart from the screen so P11 can dress it
+  without touching it:
+  - `types.ts` — `Theme = { id, locationType, frame, background, stickers[], filter,
+    captionFont }` (plus label and caption colours), `BoothSpec`, `BoothPhoto`
+    (zoom / rotate / pan), `BoothSticker` (centre, scale, rotation), and the limits
+    every control clamps to (`MAX_PHOTOS` 4, `MAX_STICKERS` 12, `PHOTO_LIMITS`,
+    `STICKER_LIMITS`).
+  - `layouts.ts` — single, 2×2, vertical 4-strip and polaroid as
+    `aspect(count)` + `slots(count)` in canvas-normalised rects, so three photos
+    fill a three-frame strip instead of leaving a hole: two photos turn the 2×2
+    into a landscape canvas, three add a wide bottom frame, the strip's slots stay
+    square at every count, and the polaroid draws a white card under a square
+    photo with a caption band.
+  - `themes.ts` — **one** placeholder theme (Y2K Chrome: dotted cream background,
+    double-line electric frame, `saturate(1.18) contrast(1.06)` photo filter,
+    pixel + rounded caption fonts resolved from the `next/font` CSS vars, 8 emoji
+    stickers). `pickTheme(locationType)` prefers an exact match, then the `any`
+    catch-all, so P11 only adds entries to the list.
+  - `render.ts` — `drawBooth(ctx, spec, size, { guides })` draws background →
+    polaroid card → clipped photos → frame → captions → stickers → selection
+    guides. Photos are covered **with rotation** (`coverScale` sizes against the
+    rotated slot bounding box), pan is clamped to the photo's slack, and the theme
+    filter rides on `ctx.filter` where the browser has it. Captions shrink to fit
+    the badge pill (or print in the polaroid band); stickers are emoji at
+    `0.15 × short edge × scale`. `exportBoothPng(spec, 2000)` renders off-screen
+    and hands back a PNG blob.
+- **UI** in `src/app/(app)/photos/`: `page.tsx` passes the trip's name, dates,
+  destination and location type; `booth-board.tsx` owns the state (tray, layout,
+  captions, sticker sheet, selection) and the photo/sticker inspectors;
+  `booth-preview.tsx` is the canvas plus the pointer work — tap to select, drag to
+  pan or move, two fingers to scale and rotate a sticker, with range sliders that
+  mirror both for anyone not gesturing.
+- Export is a 2000px-long-edge `tripcancil-booth-<layout>.png` with success and
+  failure toasts. The download button stays disabled until a photo arrives, and
+  the **Single** chip refuses more than one photo instead of quietly dropping the
+  rest; adding photos past the current layout's capacity switches to one that fits.
+- The booth writes no rows and no files — it is purely local — so it stays usable
+  on an ended trip, which is exactly when people want to print the memories.
+
+### How P10 was verified
+- **82/82 pure checks** in `scripts/test-booth.mts`: every layout's slots stay
+  inside the canvas and its aspect matches its slots, square strip slots at all
+  four counts, polaroid card + band, badge/band rects in bounds, the cover-scale
+  maths at 0° / 45° / 90°, output sizing (tall strip, square grid, portrait
+  polaroid), theme completeness (6+ unique stickers, catch-all pick), and a
+  recording mock 2D context for the draw plan: background before photos, three
+  photos → three clipped frames, `single` uses only the first photo, trip name +
+  `dates · place` + sticker glyphs each drawn once, guides switch `setLineDash`
+  on and only when something is selected.
+- **21/21 live checks** in `scripts/verify-booth.mts`: signed-out and
+  wrong-trip sessions bounce to `/join`; the signed-in page offers all four
+  layouts, the drag hint, the empty-frame hint, `accept="image/*"`, all eight
+  sticker labels and a (correctly disabled) export button; captions are
+  pre-filled with the trip name, destination and formatted dates; no `pin_hash`,
+  no bcrypt hash and no session cookie in the HTML; opening the booth writes no
+  `photos` rows.
+- Regression sweep: `typecheck`, `lint` and `build` clean; `/photos` now renders
+  as a dynamic route.
+
 ## Deferred
 - Deleting or moving a pin from the map. Adding is covered; removal waits on a prompt that
   says what should happen to stops already pointing at it.
@@ -731,8 +791,9 @@
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## Next: P10
-- The next prompt is **P10: photobooth engine (upload-based)**. Photos tab, client-side
-  only: pick 1–4 photos, crop/rotate, choose a layout, add text, export a PNG through the
-  canvas API with one placeholder theme, and drag/scale/rotate stickers with touch support.
-  P11 then dresses the same engine in the location themes.
+## Next: P11
+- The next prompt is **P11: the location themes**. P10 left `Theme` as the only thing the
+  engine reads: P11 adds the beach / mountain / city / forest / desert / heritage / snow /
+  roadtrip themes (hand-built SVG frames and borders, background patterns, 6+ stickers each,
+  a retro filter and a caption font), preselects from the trip's `location_type` and lets the
+  user switch — without touching the rendering path.

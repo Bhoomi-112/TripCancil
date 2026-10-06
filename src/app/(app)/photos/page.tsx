@@ -1,22 +1,27 @@
 import { ScreenHeader } from "@/components/shell/screen-header";
-import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Window } from "@/components/ui/window";
+import { requireSession } from "@/lib/auth/context";
+import { formatTripDates, tripHasEnded } from "@/lib/constants";
+import { BoothBoard } from "./booth-board";
 
-export default function PhotosPage() {
+export default async function PhotosPage() {
+  const { trip } = await requireSession();
+  const ended = tripHasEnded(trip.end_date);
+  const dateLabel = formatTripDates(trip.start_date, trip.end_date);
+
   return (
     <>
       <ScreenHeader
         title="Photos"
-        subtitle="Photobooth engine and shared album land in the next prompts"
+        subtitle={
+          ended ? "Print the memories, just as they happened" : "Shoot it, theme it, keep it"
+        }
       />
-      <Window title="album.preview" tone="chrome" icon={<Badge tone="bubble">booth</Badge>}>
-        <EmptyState
-          illustration="camera"
-          title="Nothing shot yet"
-          description="Pick up to four photos, pick a themed layout, export a strip."
-        />
-      </Window>
+      <BoothBoard
+        tripName={trip.name}
+        dateLabel={dateLabel}
+        place={trip.destination}
+        locationType={trip.location_type}
+      />
     </>
   );
 }
