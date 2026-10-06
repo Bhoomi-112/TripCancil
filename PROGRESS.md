@@ -484,6 +484,73 @@
   counts every vote on the trip, locked pins included - a settled decision still
   happened.
 
+## P6: packing list + documents vault (done)
+
+- Both live on the **Trip tab**, which stays the 5-tab utility/misc home (the Plan /
+  Map / Money / Photos shell is untouched): `pack-list.exe` and `doc-vault.exe` sit
+  below the "how the login works" window and above the tab bar.
+- **Packing** (`src/lib/packing/`, `packing-actions.ts`, `packing-board.tsx`):
+  - Items are the crew's or one person's. A shared item anyone can check off, a
+    private item only its maker (or the trip owner) can touch - and private items are
+    filtered **server-side** (`readPacking` does `.or("is_shared.eq.true,assigned_to.eq.<viewer>")`),
+    so nobody's "secret birthday gift" list ships to other phones.
+  - "Just for you" cards are minted in the same window per member - the packs use a
+    server action that is idempotent (`(name, category)` dedupe) and adds the seven
+    no-brainers plus the location vibe kit in `src/lib/packing/starter.ts`: city adds
+    walking shoes, a metro card, a snack stash; snow adds thermals and hand warmers;
+    beach adds SPF and a dry bag.
+  - Carrier hand-off: a shared item can be handed to one member (shown as carrying),
+    "Nobody" on edit keeps the current carrier (see known bug below), and switching a
+    private item to shared keeps its carrier and check-off state.
+  - Everything is 5s SWR like the plan (`isPackingKey` filters the mutate), toggles
+    are optimistic, the list is grouped by category chips, and ended trips are
+    read-only via `assertTripEditable` (even the check-off is refused).
+- **Documents** (`src/lib/documents/`, `documents route`, `documents-board.tsx`):
+  - Uploads go to the private `documents` bucket at `<trip>/<uuid>-<slug>.<ext>`
+    (10 MB cap, PDF + image MIME allow-list, slugified path), rows record uploader,
+    type and an optional plan link, and the **storage path never leaves the server**:
+    each 5s poll re-mints 300s signed URLs, so a preview refreshes before it dies.
+  - Delete is uploader-or-owner only, storage is removed before the row so a row can
+    never dangle at a missing file, and a failed storage removal aborts the whole
+    delete.
+  - The vault previews PDFs inline and images, offers "Open in a new tab" on the
+    signed URL, and shows the plan item each doc is bolted to.
+- **Trip page** (`trip/page.tsx`) now reads packing + vault server-side alongside the
+  existing payloads and hands each board `initial` data (first paint == every poll).
+
+### How this was verified
+- **83/83 live checks** in a throwaway harness (`scripts/verify-p6.mts`) against the
+  live Supabase project: an empty list reads back empty with the crew; a shared item
+  is shared and assigned and checked-off by any member; a private item is forced to
+  its maker even when the form names someone else, invisible to other members, and
+  refused to edit/toggle/delete by them but allowed to the owner; editing renames,
+  recategorises and hands the carrier over, "Nobody" being read as "keep whoever has
+  it"; switching private→shared opens the item while keeping carrier and check; the
+  starter tap adds exactly the missing vibe items and a second tap adds nothing;
+  mystery ids and other trips' items refused; an over trip refuses adds and seeds.
+  The vault: empty files, non-image claims and 10 MB+ files refused; a plan item from
+  another trip refused; a PDF lands slugged under the trip folder with the plan link;
+  the newest doc sorts first and its kind is derived from the stored file; every
+  preview came back as a signed URL, a plain member cannot delete someone else's
+  upload, the owner can, and the stored file is gone with the row; an over trip
+  refuses uploads. The trip page in fresh HTML of the live/empty/over fixtures
+  rendered both windows, the starter and upload CTAs only while editable, badged
+  Read-only once ended, and leaked no `pin_hash`, `invite_code` or `storage_path`;
+  both polling routes answered 200 / 401 / 404 correctly and leaked nothing. All
+  fixture trips and uploads were deleted; a re-run of `verify-money.mts` was not
+  needed (the money bits are untouched) but `npm run typecheck`, `npm run lint` and
+  `npm run build` are all clean.
+- A leak the checks caught: `readDocuments` used to spread the whole DB row, which
+  carried `storage_path` into the browser payload. The wire type is now an explicit
+  safe shape (`id, title, type, uploaderId, itineraryItemId, createdAt, previewUrl, kind`).
+
+### Known bugs
+- Editing a shared item and picking "Nobody" does **not** clear the carrier: the
+  form sends an empty `assignedTo` and the service keeps the current
+  `assigned_to`. The "carried by nobody" state therefore only exists on a fresh
+  item. Acceptable for v1 (avoids accidentally dropping who's carrying the tent),
+  but the hint in the form currently overpromises.
+
 ## Deferred
 - Place votes: `place_votes` is still empty and nothing counts them, so a candidate has no
   score yet.
@@ -511,6 +578,9 @@
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## Next: P6
-- The photobooth is the obvious next tab: canvas captures, themed frames, and a saved album per
-  trip, all client-side until the export goes to a private bucket.
+## Next: P7
+- The next prompt is **P7: Budget** - the `budgets` table is already seeded (total +
+  per-category caps in paise) but read nowhere; a window on the Money tab or Trip tab
+  plotting spent vs capped, editable only while the trip is live.
+- After that the pack order runs P8 (unequal splits + receipts), P9 (payment QR
+  storage), then the photobooth and the public recap page.

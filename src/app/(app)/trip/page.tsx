@@ -7,20 +7,31 @@ import { QrCode } from "@/components/auth/qr-code";
 import { requireSession } from "@/lib/auth/context";
 import { isOwner } from "@/lib/auth/roles";
 import { activeLockout } from "@/lib/auth/rate-limit";
+import { tripHasEnded } from "@/lib/constants";
 import { getSupabase } from "@/lib/db/client";
 import { env } from "@/lib/env";
 import { formatTripDates, LOCATION_TYPE_LABELS } from "@/lib/constants";
+import { readPacking } from "@/lib/packing/service";
+import { readDocuments } from "@/lib/documents/service";
+import { PackingBoard } from "./packing-board";
+import { DocumentsBoard } from "./documents-board";
 import { MemberRow, RotateInviteButton } from "./member-controls";
 
 export default async function TripPage() {
   const { member, trip } = await requireSession();
   const owner = isOwner({ member, trip });
+  const ended = tripHasEnded(trip.end_date);
 
   const { data: members } = await getSupabase()
     .from("members")
     .select("*")
     .eq("trip_id", trip.id)
     .order("created_at", { ascending: true });
+
+  const [packing, documents] = await Promise.all([
+    readPacking(trip.id, member.id),
+    readDocuments(trip.id),
+  ]);
 
   const roster = members ?? [];
   const shareUrl = `${env.appUrl}/join?code=${trip.invite_code}`;
@@ -30,7 +41,7 @@ export default async function TripPage() {
       <ScreenHeader
         title="Trip"
         subtitle={`${trip.destination} · ${formatTripDates(trip.start_date, trip.end_date)}`}
-        badge={LOCATION_TYPE_LABELS[trip.location_type]}
+        badge={ended ? "Read-only" : LOCATION_TYPE_LABELS[trip.location_type]}
         actions={<AvatarStack names={roster.map((row) => row.display_name)} />}
       />
 
@@ -107,6 +118,21 @@ export default async function TripPage() {
             in a signed, httpOnly cookie.
           </p>
         </Window>
+
+        <PackingBoard
+          tripId={trip.id}
+          viewerId={member.id}
+          editable={!ended}
+          initial={packing}
+        />
+
+        <DocumentsBoard
+          tripId={trip.id}
+          viewerId={member.id}
+          isOwner={owner}
+          editable={!ended}
+          initial={documents}
+        />
       </div>
     </>
   );
