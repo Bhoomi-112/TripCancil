@@ -38,6 +38,7 @@ export type MoneyPayload = {
   expenses: MoneyExpense[];
   splits: MoneySplit[];
   settlements: MoneySettlement[];
+  budget: Tables<"budgets"> | null;
 };
 
 function isLive(settlement: MoneySettlement): boolean {

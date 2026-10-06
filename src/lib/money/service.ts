@@ -5,6 +5,7 @@ import { getSupabase } from "@/lib/db/client";
 import { tripHasEnded } from "@/lib/constants";
 import type { MoneyPayload } from "@/lib/money/balances";
 import { splitEqually } from "@/lib/money/paise";
+import { EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/money/categories";
 import type { Enums } from "@/lib/db/types";
 import type { SettlementStatus } from "@/lib/money/categories";
 
@@ -42,7 +43,7 @@ function assertTripEditable(context: SessionContext): void {
 export async function readMoney(tripId: string): Promise<MoneyPayload> {
   const supabase = getSupabase();
 
-  const [members, expenses, settlements] = await Promise.all([
+  const [members, expenses, settlements, budget] = await Promise.all([
     supabase
       .from("members")
       .select("id, display_name, role")
@@ -59,11 +60,17 @@ export async function readMoney(tripId: string): Promise<MoneyPayload> {
       .select("*")
       .eq("trip_id", tripId)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("budgets")
+      .select("*")
+      .eq("trip_id", tripId)
+      .maybeSingle(),
   ]);
 
   if (members.error) throw new MoneyError(members.error.message);
   if (expenses.error) throw new MoneyError(expenses.error.message);
   if (settlements.error) throw new MoneyError(settlements.error.message);
+  if (budget.error) throw new MoneyError(budget.error.message);
 
   // `expense_splits` has no trip_id of its own, so the trip's rows are found
   // through the expense ids that came back with the ledger. Soft-deleted
@@ -88,7 +95,56 @@ export async function readMoney(tripId: string): Promise<MoneyPayload> {
     expenses: expenses.data ?? [],
     splits,
     settlements: settlements.data ?? [],
+    budget: budget.data ?? null,
   };
+}
+
+export type SetBudgetInput = {
+  totalPaise: number;
+  /** Only recognised expense categories survive; a zero cap means "no cap". */
+  caps: Partial<Record<ExpenseCategory, number>>;
+};
+
+/**
+ * Saves the whole budget in one upsert: a total to pace against plus optional
+ * per-category caps. Any member can set it, same as logging an expense, and the
+ * caps object is scrubbed to known categories with non-negative whole paise so
+ * the script next to the JSON could never hand back a float or a stranger key.
+ */
+export async function setBudget(
+  context: SessionContext,
+  input: SetBudgetInput,
+): Promise<void> {
+  assertTripEditable(context);
+
+  const totalPaise = Math.floor(input.totalPaise);
+  if (!Number.isFinite(input.totalPaise) || totalPaise < 0) {
+    throw new MoneyError("A budget is a number of paise, not this.");
+  }
+
+  const categoryCaps: Record<string, number> = {};
+  for (const category of EXPENSE_CATEGORIES) {
+    const value = input.caps[category];
+    if (value === undefined) continue;
+    const paise = Math.floor(value);
+    if (!Number.isFinite(value) || paise < 0) {
+      throw new MoneyError("A cap is a number of paise, not this.");
+    }
+    if (paise > 0) categoryCaps[category] = paise;
+  }
+
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from("budgets")
+    .upsert(
+      {
+        trip_id: context.trip.id,
+        total_paise: totalPaise,
+        category_caps: categoryCaps,
+      },
+      { onConflict: "trip_id" },
+    );
+  if (error) throw new MoneyError(error.message);
 }
 
 async function assertMemberInTrip(tripId: string, memberId: string) {

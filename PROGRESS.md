@@ -558,6 +558,45 @@
   new harness checks (both screens render 200 + the right form for a signed-in
   cookie; previously 307 to the old plan).
 
+## P7: the budget (done)
+
+- **`src/lib/money/budget.ts`** — pure paise arithmetic, client-safe like the
+  balances module, so the server page, the 5s poll and the browser draw the same
+  bars. `capsOf` reads the stored `category_caps` JSON defensively (unknown keys,
+  negatives, floats and leftovers all dropped, canonical order); `budgetLines`
+  gives one row per capped category with spent / remaining / over; `budgetTotals`
+  paces the whole ceiling; `ratioPaise` guards a zero total.
+- **Storage** — the one `budgets` row per trip (total_paise + category_caps) is
+  now read by `readMoney` (`budget: BudgetRow | null` added to `MoneyPayload`,
+  fetched in the same `Promise.all`) and written by a new `setBudget` service
+  that goes through `assertTripEditable` (ended trips refuse), floors to whole
+  paise, rejects negative totals/caps, scrubs unknown categories and `0` ("no
+  cap") before an `upsert(..., { onConflict: "trip_id" })`.
+- **The window** — "The budget" now sits between "The ledger" and "Who owes whom"
+  on the Money tab (`budget-window.tsx`): a big ceiling with a spent/remaining
+  sticker (lime while clear, hot pink "Over by ₹…" when blown), a tone bar, and
+  one chrome bar per capped category with the `CAP/SPENT` reading and an over badge.
+  Editable by any member while the trip is live: the chrome "Set"/"Edit" button or
+  the coins empty-state opens `budget-form.tsx`, a modal of rupee inputs — the
+  total plus six optional per-category caps posted as `cap-<category>` and parsed
+  with `parsePaise`. A set budget survives editing (replace, not accumulate).
+- **Poll** — rides the existing money SWR key and `/api/trips/[tripId]/money`; no
+  new route.
+
+### How this was verified
+- **41/41 live checks** in `scripts/verify-budget.mts` against live Supabase +
+  the dev server: capsOf scrubs junk; lines/totals/ratio clamp right (soft-deleted
+  expenses don't count toward a cap); a fresh trip reads `budget: null`; a set
+  budget round-trips with an added expense feeding the bar; negative total/cap
+  refused; a second save replaces caps and treats `0` as uncapped; any member can
+  set it and unknown category keys never reach storage; another trip stays
+  unbudgeted; an over trip refuses `setBudget` with "read-only". The money page
+  in fresh HTML renders "The budget", the ceiling, the remaining, "Category caps"
+  and the category names, shows the coins empty-state on an unbudgeted trip and
+  the read-only line on an ended one, and leaks no `pin_hash`; the polling route
+  sends the budget row and nothing private. Re-ran `verify-money.mts` (89/89) and
+  `verify-p6.mts` (87/87) — no regressions; `typecheck`, `lint` and `build` clean.
+
 ## Deferred
 - Place votes: `place_votes` is still empty and nothing counts them, so a candidate has no
   score yet.
@@ -569,8 +608,6 @@
 - Cross-day dragging: items move days through the edit form's day picker, not by dragging a
   row onto another chip.
 - A trip longer than 30 days cannot be planned past day 30 (see `MAX_TRIP_DAYS`).
-- Money: budgets. The `budgets` table is seeded and read nowhere; a bar against a limit is its own
-  prompt.
 - Money: receipts on expenses. `expenses.receipt_path` exists and the private-bucket rule already
   covers documents, but nothing uploads one yet.
 - Money: unequal splits. The UI splits equally and the ledger handles any set of shares, because
@@ -585,9 +622,10 @@
 - Dev-only hydration warning on `<html data-scribe-recorder-ready>` injected by the Next 16
   dev overlay. Not present in the production build.
 
-## Next: P7
-- The next prompt is **P7: Budget** - the `budgets` table is already seeded (total +
-  per-category caps in paise) but read nowhere; a window on the Money tab or Trip tab
-  plotting spent vs capped, editable only while the trip is live.
-- After that the pack order runs P8 (unequal splits + receipts), P9 (payment QR
-  storage), then the photobooth and the public recap page.
+## Next: P8
+- The next prompt is **P8: unequal splits + receipts**: the ledger already handles
+  any set of shares, so this is mostly the expense form growing a per-member share
+  input, plus `expenses.receipt_path` being uploaded to a private bucket and served
+  by signed URLs, and a line on an expense that other debts could attach to.
+- After that the pack order runs P9 (payment QR storage), then the photobooth and
+  the public recap page.

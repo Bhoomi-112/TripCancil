@@ -129,6 +129,7 @@ const trio: P = {
     { expense_id: "e1", member_id: "c", share_paise: 1000 },
   ],
   settlements: [],
+  budget: null,
 };
 
 const trioNets = computeBalances(trio).map((entry) => [entry.memberId, entry.netPaise]);
@@ -225,6 +226,7 @@ const six: P = {
     { expense_id: "x3", member_id: "f", share_paise: 125 },
   ],
   settlements: [],
+  budget: null,
 };
 const sixBalances = computeBalances(six);
 const sixTransfers = simplifyDebts(sixBalances);

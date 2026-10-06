@@ -40,3 +40,17 @@ export const settlementStatusSchema = z.object({
   settlementId: z.string().uuid(),
   status: z.enum(SETTLEMENT_STATUSES),
 });
+
+export const budgetSchema = z.object({
+  totalRupees: z
+    .string()
+    .trim()
+    .min(1, "How much is the trip worth?")
+    .max(20, "That budget is too long"),
+});
+export type BudgetFormInput = z.infer<typeof budgetSchema>;
+
+/** Returns the cap field name a category posts under, e.g. `cap-stay`. */
+export function capFieldName(category: (typeof EXPENSE_CATEGORIES)[number]): string {
+  return `cap-${category}`;
+}

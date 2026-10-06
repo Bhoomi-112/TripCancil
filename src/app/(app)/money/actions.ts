@@ -3,16 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { failed, runAction, type ActionState } from "@/lib/actions/state";
 import { requireSession } from "@/lib/auth/context";
+import { EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/money/categories";
 import { parsePaise } from "@/lib/money/paise";
 import {
   createExpense,
   createSettlement,
+  setBudget,
   setSettlementStatus,
   softDeleteExpense,
   updateExpense,
 } from "@/lib/money/service";
 import { formToObject } from "@/lib/validation/auth";
 import {
+  budgetSchema,
+  capFieldName,
   expenseSchema,
   settlementSchema,
   settlementStatusSchema,
@@ -169,6 +173,55 @@ export async function setSettlementStatusAction(
       parsed.data.settlementId,
       parsed.data.status,
     );
+    revalidatePath("/money");
+    return { ok: true };
+  });
+}
+
+export async function setBudgetAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const context = await requireSession();
+    const parsed = budgetSchema.safeParse(formToObject(formData));
+    if (!parsed.success) {
+      return failed(
+        "That budget could not be read.",
+        parsed.error.flatten().fieldErrors as Record<string, string>,
+      );
+    }
+
+    const totalPaise = parsePaise(parsed.data.totalRupees);
+    if (totalPaise === null) {
+      return failed("That budget amount is not money.", {
+        totalRupees: "Try something like 20,000",
+      });
+    }
+
+    const caps: Partial<Record<ExpenseCategory, number>> = {};
+    const fieldErrors: Record<string, string> = {};
+    for (const category of EXPENSE_CATEGORIES) {
+      const field = capFieldName(category);
+      const text = formData.get(field);
+      if (typeof text !== "string" || text.trim() === "") continue;
+      const paise = parsePaise(text);
+      if (paise === null) {
+        fieldErrors[field] = "Not money. Leave blank to cap nothing.";
+        continue;
+      }
+      if (paise < 0) {
+        fieldErrors[field] = "A cap can't be negative.";
+        continue;
+      }
+      caps[category] = paise;
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      return failed("Some of those caps do not make sense.", fieldErrors);
+    }
+
+    await setBudget(context, { totalPaise, caps });
     revalidatePath("/money");
     return { ok: true };
   });

@@ -21,6 +21,7 @@ import {
 } from "@/lib/money/balances";
 import { CATEGORY_COLOURS, CATEGORY_LABELS } from "@/lib/money/categories";
 import { formatPaise, formatPaiseShort } from "@/lib/money/paise";
+import { BudgetWindow } from "./budget-window";
 import { ExpenseForm } from "./expense-form";
 import { ExpenseRow } from "./expense-row";
 import { SettleForm } from "./settle-form";
@@ -168,6 +169,8 @@ export function MoneyBoard({
           </div>
         ) : null}
       </Window>
+
+      <BudgetWindow payload={payload} editable={editable} />
 
       <Window title="Who owes whom" icon={<span aria-hidden="true">⚖️</span>}>
         <div className="flex flex-col gap-2">
